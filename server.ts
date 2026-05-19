@@ -12,7 +12,11 @@ async function getValidClientId() {
   
   try {
     console.log("Fetching new SoundCloud Client ID...");
-    const { data } = await axios.get('https://soundcloud.com/');
+    const { data } = await axios.get('https://soundcloud.com/', {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        }
+    });
     const urls = [...data.matchAll(/<script[^>]+src="([^"]+)"/g)]
       .map(m => m[1])
       .filter(url => url.includes('sndcdn.com/assets/'));
@@ -20,7 +24,11 @@ async function getValidClientId() {
     // Search from the end as it's usually in the last few scripts
     for (let i = urls.length - 1; i >= Math.max(0, urls.length - 5); i--) {
       try {
-        const { data: scriptData } = await axios.get(urls[i]);
+        const { data: scriptData } = await axios.get(urls[i], {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            }
+        });
         const match = scriptData.match(/client_id:"([a-zA-Z0-9]{32})"/);
         if (match) {
           dynamicClientId = match[1];
