@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, ChevronDown, Repeat, Shuffle, Heart } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, ChevronDown, Heart } from 'lucide-react';
 import { usePlayer } from '../PlayerContext';
+import { getSafeArtworkUrl } from '../services/soundcloud';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 
 const Player: React.FC = () => {
-  const { currentTrack, isPlaying, togglePlay, progress, duration, seek, isLiked, toggleLike } = usePlayer();
+  const { currentTrack, isPlaying, togglePlay, progress, duration, seek, isLiked, toggleLike, playNext, playPrevious } = usePlayer();
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!currentTrack) return null;
@@ -16,9 +17,7 @@ const Player: React.FC = () => {
     return format(date, 'm:ss');
   };
 
-  const artwork = currentTrack.artwork_url?.replace('large', 't500x500') || 
-                  currentTrack.user.avatar_url?.replace('large', 't500x500') ||
-                  'https://picsum.photos/seed/music/500/500';
+  const artwork = getSafeArtworkUrl(currentTrack.artwork_url || currentTrack.user?.avatar_url, 't500x500');
 
   const PlayerControls = () => (
     <div className="flex flex-col gap-6 w-full">
@@ -43,17 +42,25 @@ const Player: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-white">
-        <Shuffle className="w-6 h-6 text-white/50" />
-        <SkipBack className="w-10 h-10 fill-current" />
+      <div className="flex items-center justify-center gap-12 text-white">
+        <button 
+          onClick={playPrevious}
+          className="focus:outline-none hover:opacity-80 active:scale-95 transition-all"
+        >
+          <SkipBack className="w-10 h-10 fill-current" />
+        </button>
         <button 
           onClick={togglePlay}
-          className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black"
+          className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform"
         >
           {isPlaying ? <Pause className="w-10 h-10 fill-current" /> : <Play className="w-10 h-10 fill-current ml-2" />}
         </button>
-        <SkipForward className="w-10 h-10 fill-current" />
-        <Repeat className="w-6 h-6 text-white/50" />
+        <button 
+          onClick={playNext}
+          className="focus:outline-none hover:opacity-80 active:scale-95 transition-all"
+        >
+          <SkipForward className="w-10 h-10 fill-current" />
+        </button>
       </div>
     </div>
   );
@@ -71,7 +78,7 @@ const Player: React.FC = () => {
           <img src={artwork} className="w-10 h-10 rounded shadow-lg" referrerPolicy="no-referrer" />
           <div className="truncate">
             <h4 className="text-white text-sm font-semibold truncate">{currentTrack.title}</h4>
-            <p className="text-white/50 text-xs truncate">{currentTrack.user.username}</p>
+            <p className="text-white/50 text-xs truncate">{currentTrack.user?.username || 'Unknown Author'}</p>
           </div>
         </div>
         <button 
@@ -105,7 +112,7 @@ const Player: React.FC = () => {
               <div className="w-full flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold mb-1">{currentTrack.title}</h1>
-                    <p className="text-lg text-white/50">{currentTrack.user.username}</p>
+                    <p className="text-lg text-white/50">{currentTrack.user?.username || 'Unknown Author'}</p>
                 </div>
                 <button 
                     onClick={() => toggleLike(currentTrack)}

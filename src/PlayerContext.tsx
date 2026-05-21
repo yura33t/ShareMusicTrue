@@ -15,6 +15,10 @@ interface PlayerContextType {
   likedTracks: SoundCloudTrack[];
   toggleLike: (track: SoundCloudTrack) => void;
   isLiked: (trackId: number) => boolean;
+  playlist: SoundCloudTrack[];
+  setPlaylist: (tracks: SoundCloudTrack[]) => void;
+  playNext: () => void;
+  playPrevious: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -25,10 +29,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
+  const [playlist, setPlaylist] = useState<SoundCloudTrack[]>([]);
   const [likedTracks, setLikedTracks] = useState<SoundCloudTrack[]>(() => {
     const saved = localStorage.getItem('likedTracks');
     return saved ? JSON.parse(saved) : [];
   });
+  
+  const currentTrackRef = useRef(currentTrack);
+  const playlistRef = useRef(playlist);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+    playlistRef.current = playlist;
+  }, [currentTrack, playlist]);
   
   useEffect(() => {
     localStorage.setItem('likedTracks', JSON.stringify(likedTracks));
@@ -61,6 +74,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const onEnded = () => {
       setIsPlaying(false);
       setProgress(0);
+      
+      const current = currentTrackRef.current;
+      const list = playlistRef.current;
+      if (current && list) {
+        const currentIndex = list.findIndex(t => t.id === current.id);
+        if (currentIndex !== -1 && currentIndex < list.length - 1) {
+            playTrack(list[currentIndex + 1]);
+        }
+      }
     };
 
     audio.addEventListener('timeupdate', updateProgress);
@@ -161,6 +183,28 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const playNext = () => {
+    const current = currentTrackRef.current;
+    const list = playlistRef.current;
+    if (current && list) {
+      const currentIndex = list.findIndex(t => t.id === current.id);
+      if (currentIndex !== -1 && currentIndex < list.length - 1) {
+        playTrack(list[currentIndex + 1]);
+      }
+    }
+  };
+
+  const playPrevious = () => {
+    const current = currentTrackRef.current;
+    const list = playlistRef.current;
+    if (current && list) {
+      const currentIndex = list.findIndex(t => t.id === current.id);
+      if (currentIndex > 0) {
+        playTrack(list[currentIndex - 1]);
+      }
+    }
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -173,9 +217,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         volume,
         setVolume,
         seek,
+        playlist,
+        setPlaylist,
         likedTracks,
         toggleLike,
         isLiked,
+        playNext,
+        playPrevious,
       }}
     >
       {children}

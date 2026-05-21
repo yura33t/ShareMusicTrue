@@ -1,5 +1,18 @@
 import axios from 'axios';
 
+export const getSafeArtworkUrl = (
+  url: string | null | undefined, 
+  size: 't500x500' | 't300x300' | 'large' = 't300x300'
+): string => {
+  if (!url) return 'https://picsum.photos/seed/music/500/500';
+  let safeUrl = url.replace(/^http:/, 'https:');
+  
+  if (safeUrl.includes('-large.')) {
+    return safeUrl.replace('-large.', `-${size}.`);
+  }
+  return safeUrl;
+};
+
 export interface SoundCloudTrack {
   id: number;
   title: string;
@@ -22,6 +35,44 @@ export interface SoundCloudTrack {
     }>;
   };
 }
+
+export interface SoundCloudPlaylist {
+  id: number;
+  title: string;
+  artwork_url?: string;
+  track_count?: number;
+  user: {
+    username: string;
+    avatar_url: string;
+  };
+  tracks?: SoundCloudTrack[];
+}
+
+export const searchPlaylists = async (query: string, offset: number = 0): Promise<SoundCloudPlaylist[]> => {
+  try {
+    const response = await axios.get(`/api/soundcloud/playlists`, {
+      params: {
+        q: query,
+        limit: 20,
+        offset,
+      },
+    });
+    return response.data.collection || [];
+  } catch (error) {
+    console.error('Error searching playlists:', error);
+    return [];
+  }
+};
+
+export const getPlaylistDetails = async (playlistId: number): Promise<SoundCloudPlaylist | null> => {
+  try {
+    const response = await axios.get(`/api/soundcloud/playlists/${playlistId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching playlist ${playlistId} details:`, error);
+    return null;
+  }
+};
 
 export const searchTracks = async (query: string, offset: number = 0, type: 'tracks' | 'users' = 'tracks'): Promise<SoundCloudTrack[]> => {
   try {

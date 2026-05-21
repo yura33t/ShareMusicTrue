@@ -1,6 +1,6 @@
 import React from 'react';
 import { Play, Pause, Heart } from 'lucide-react';
-import { SoundCloudTrack } from '../services/soundcloud';
+import { SoundCloudTrack, getSafeArtworkUrl } from '../services/soundcloud';
 import { usePlayer } from '../PlayerContext';
 
 interface TrackCardProps {
@@ -13,9 +13,7 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
   const isActive = isCurrent && isPlaying;
   const liked = isLiked(track.id);
 
-  const artwork = track.artwork_url?.replace('large', 't500x500') || 
-                  track.user.avatar_url?.replace('large', 't500x500') ||
-                  'https://picsum.photos/seed/music/500/500';
+  const artwork = getSafeArtworkUrl(track.artwork_url || track.user?.avatar_url, 't500x500');
 
   return (
     <div 
@@ -38,7 +36,7 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
       <div className="flex justify-between items-start">
         <div className="w-4/5">
             <h3 className="font-mono font-bold text-xs text-white truncate mb-0.5 uppercase tracking-wide">{track.title}</h3>
-            <p className="text-[10px] text-white/50 truncate uppercase tracking-wider">{track.user.username}</p>
+            <p className="text-[10px] text-white/50 truncate uppercase tracking-wider">{track.user?.username || 'Unknown Author'}</p>
         </div>
         <button 
             onClick={(e) => { e.stopPropagation(); toggleLike(track); }}

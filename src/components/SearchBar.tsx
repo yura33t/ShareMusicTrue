@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Search as SearchIcon, X } from 'lucide-react';
-import { searchTracks, SoundCloudTrack } from '../services/soundcloud';
+import { searchTracks, searchPlaylists, SoundCloudTrack, SoundCloudPlaylist } from '../services/soundcloud';
 
 interface SearchBarProps {
-  onResults: (results: SoundCloudTrack[], query: string) => void;
+  onResults: (results: SoundCloudTrack[], playlists: SoundCloudPlaylist[], query: string) => void;
   onLoading: (loading: boolean) => void;
 }
 
@@ -14,16 +14,26 @@ const SearchBar: React.FC<SearchBarProps> = ({ onResults, onLoading }) => {
     const delayDebounceFn = setTimeout(async () => {
       if (query.trim()) {
         onLoading(true);
-        const results = await searchTracks(query);
-        onResults(results, query);
-        onLoading(false);
+        try {
+          const [tracks, playlists] = await Promise.all([
+            searchTracks(query),
+            searchPlaylists(query)
+          ]);
+          onResults(tracks, playlists, query);
+        } catch (error) {
+          console.error('Error during combined search:', error);
+          onResults([], [], query);
+        } finally {
+          onLoading(false);
+        }
       } else {
-        onResults([], '');
+        onResults([], [], '');
       }
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
   }, [query]);
+
 
   return (
     <div className="relative w-full max-w-2xl">
