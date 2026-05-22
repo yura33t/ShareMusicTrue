@@ -17,32 +17,32 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
 
   return (
     <div 
-      className="group relative bg-[#0a0a0a] p-3 border border-white/5 hover:border-white/20 transition-all duration-100 cursor-pointer"
+      className={`group relative glass-card p-3.5 rounded-2xl cursor-pointer ${isCurrent ? 'glass-card-active border-white/30 text-white shadow-lg' : ''}`}
       onClick={() => playTrack(track)}
     >
-      <div className="relative aspect-square mb-3 overflow-hidden border border-white/10">
+      <div className="relative aspect-square mb-3.5 overflow-hidden rounded-xl border border-white/5 shadow-inner">
         <img 
           src={artwork} 
           alt={track.title}
-          className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
+          className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110 ease-[cubic-bezier(0.16,1,0.3,1)]"
           referrerPolicy="no-referrer"
         />
-        <div className={`absolute inset-0 bg-black/60 flex items-center justify-center transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-          <div className="w-10 h-10 bg-white rounded-none flex items-center justify-center text-black shadow-xl">
+        <div className={`absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center transition-all duration-300 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <div className="w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-105 active:scale-95 transition-all">
             {isActive ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
           </div>
         </div>
       </div>
-      <div className="flex justify-between items-start">
-        <div className="w-4/5">
-            <h3 className="font-mono font-bold text-xs text-white truncate mb-0.5 uppercase tracking-wide">{track.title}</h3>
-            <p className="text-[10px] text-white/50 truncate uppercase tracking-wider">{track.user?.username || 'Unknown Author'}</p>
+      <div className="flex justify-between items-start gap-1">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm text-white/90 truncate group-hover:text-white transition-colors tracking-tight">{track.title}</h3>
+          <p className="text-xs text-white/40 truncate tracking-wide mt-0.5">{track.user?.username || 'Unknown Author'}</p>
         </div>
         <button 
-            onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
-            className={`p-1 ${liked ? 'text-red-500' : 'text-white/30 hover:text-white'}`}
+          onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+          className={`p-1.5 rounded-full transition-all hover:bg-white/5 shrink-0 ${liked ? 'text-red-500' : 'text-white/30 hover:text-white/70'}`}
         >
-            <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
+          <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
         </button>
       </div>
     </div>

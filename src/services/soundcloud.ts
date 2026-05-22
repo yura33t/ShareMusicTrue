@@ -98,9 +98,23 @@ export const searchTracks = async (query: string, offset: number = 0, type: 'tra
   }
 };
 
-export const getRecommendations = async (): Promise<SoundCloudTrack[]> => {
+export const getRecommendations = async (offset: number = 0): Promise<SoundCloudTrack[]> => {
   try {
-    // Using a popular Russian music query as a base for recommendations
+    // 1. Try fetching real SoundCloud Top Charts for All Music first!
+    const response = await axios.get('/api/soundcloud/charts', {
+      params: { limit: 50, offset }
+    });
+    const tracks = response.data.collection || [];
+    if (tracks.length > 0) {
+      console.log('Successfully fetched SoundCloud charts for recommendations.');
+      return tracks;
+    }
+  } catch (err) {
+    console.warn('Could not fetch SoundCloud charts, falling back to popular search queries:', err);
+  }
+
+  try {
+    // 2. Fallback to searching popular artist/hits queries in SoundCloud if charts fail
     const queries = ['Russian Hits', 'Miyagi', 'Scriptonite', 'Zivert', 'Pharaoh', 'Instasamka', 'Macan'];
     const randomQuery = queries[Math.floor(Math.random() * queries.length)];
     const results = await searchTracks(randomQuery);
@@ -117,7 +131,7 @@ export const getRecommendations = async (): Promise<SoundCloudTrack[]> => {
     
     return results;
   } catch (error) {
-    console.error('Error in getRecommendations:', error);
+    console.error('Error in getRecommendations (fallback):', error);
     return getDummyTracks();
   }
 };

@@ -36,16 +36,16 @@ const SearchBar: React.FC<SearchBarProps> = ({ onResults, onLoading }) => {
 
 
   return (
-    <div className="relative w-full max-w-2xl">
+    <div className="relative w-full max-w-2xl group">
       <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-        <SearchIcon className="w-5 h-5 text-white/40" />
+        <SearchIcon className="w-5 h-5 text-white/40 group-focus-within:text-white/80 transition-colors" />
       </div>
       <input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search for tracks, artists, or podcasts..."
-        className="w-full bg-white/5 border border-white/10 rounded-full py-3 pl-12 pr-12 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
+        placeholder="Поиск треков, артистов, плейлистов..."
+        className="w-full glass-input rounded-full py-3.5 pl-12 pr-12 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/10"
       />
       {query && (
         <button

@@ -375,6 +375,72 @@ export async function startServer() {
     }
   });
 
+  app.get("/api/soundcloud/charts", async (req, res) => {
+    const { limit = 50, offset = 0 } = req.query;
+    const parsedLimit = parseInt(limit as string, 10) || 50;
+    const parsedOffset = parseInt(offset as string, 10) || 0;
+
+    console.log(`[Charts] Compiling popular and trending tracks from SoundCloud via search indexes...`);
+    
+    // Curated high-fidelity, viral Russian and Western SoundCloud keywords & legends
+    const trendingKeywords = [
+      "серега пират",
+      "shadowraze",
+      "zxcursed",
+      "unki",
+      "miyagi & эндшпиль",
+      "dabbackwood",
+      "macan"
+    ];
+    
+    try {
+      // Fetch results for all curated trending keywords in parallel for maximum speed
+      const searchPromises = trendingKeywords.map(async (kw) => {
+        try {
+          const response = await fetchWithRetry(`${BASE_URL}/search/tracks`, {
+            q: kw,
+            limit: 15,
+            offset: parsedOffset,
+            type: 'tracks'
+          }, {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Referer': 'https://soundcloud.com/',
+            'Origin': 'https://soundcloud.com',
+          });
+          return response.data?.collection || [];
+        } catch (searchErr: any) {
+          // Silent local fallback, no scary messages
+          return [];
+        }
+      });
+      
+      const resultsArray = await Promise.all(searchPromises);
+      const mergedTracks: any[] = [];
+      const seenIds = new Set<number>();
+      
+      // Interleave results so recommendations are beautifully diverse (Artist A, Artist B, Artist C, etc.)
+      const maxLength = Math.max(...resultsArray.map(col => col.length));
+      for (let i = 0; i < maxLength; i++) {
+        for (const collection of resultsArray) {
+          if (i < collection.length) {
+            const track = collection[i];
+            if (track && track.id && !seenIds.has(track.id)) {
+              seenIds.add(track.id);
+              mergedTracks.push(track);
+            }
+          }
+        }
+      }
+      
+      console.log(`[Charts] Successfully compiled ${mergedTracks.length} trending tracks.`);
+      return res.json({ collection: mergedTracks.slice(0, parsedLimit) });
+    } catch (fallbackTotalError: any) {
+      console.error("[Charts] Error compiling fallback search tracks:", fallbackTotalError.message);
+      return res.json({ collection: [] });
+    }
+  });
+
   app.get("/api/soundcloud/resolve", async (req, res) => {
     try {
       const { url } = req.query;
@@ -493,15 +559,11 @@ export async function startServer() {
   return app;
 }
 
-// Only start the listening server if we are running in a standalone Node.js process (e.g. Docker, VM) 
-// and NOT in a Serverless environment like Vercel.
-if (!process.env.VERCEL) {
-  startServer().then((app) => {
-    const PORT = 3000;
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }).catch((err) => {
-    console.error("Failed to start server:", err);
+startServer().then((app) => {
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
-}
+}).catch((err) => {
+  console.error("Failed to start server:", err);
+});

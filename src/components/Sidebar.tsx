@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Home, Search, Library, Heart, PlusSquare, X } from 'lucide-react';
 import SMLogo from './SMLogo';
 
-const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => void }> = ({ onClose, onNavigate }) => {
+const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => void, currentView?: string }> = ({ onClose, onNavigate, currentView = 'home' }) => {
   const [isLegalOpen, setIsLegalOpen] = useState(false);
   const navigate = (view: string) => {
     onNavigate?.(view);
@@ -10,7 +10,7 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
   };
 
   return (
-    <div className="w-64 bg-black text-white h-screen flex flex-col border-r border-white/10 relative">
+    <div className="w-64 glass-panel text-white h-screen flex flex-col border-r border-white/5 relative">
       <button 
         onClick={onClose}
         className="lg:hidden absolute top-6 right-4 p-2 text-white/50 hover:text-white"
@@ -20,28 +20,28 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
 
       <div className="p-6 flex items-center gap-3">
         <SMLogo className="w-8 h-8 text-white" />
-        <h1 className="text-2xl font-bold tracking-tighter font-sans">shareMusic</h1>
+        <h1 className="text-2xl font-bold tracking-tighter font-sans bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">shareMusic</h1>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2 overflow-y-auto scrollbar-hide">
-        <div onClick={() => navigate('home')}><NavItem icon={<Home className="w-5 h-5" />} label="Home" /></div>
-        <div onClick={() => navigate('search')}><NavItem icon={<Search className="w-5 h-5" />} label="Search" /></div>
-        <div onClick={() => navigate('liked')}><NavItem icon={<Heart className="w-5 h-5" />} label="Liked Songs" /></div>
+      <nav className="flex-1 px-4 space-y-2.5 overflow-y-auto scrollbar-hide">
+        <div onClick={() => navigate('home')}><NavItem icon={<Home className="w-5 h-5" />} label="Главная" active={currentView === 'home' || currentView === 'playlist-detail'} /></div>
+        <div onClick={() => navigate('search')}><NavItem icon={<Search className="w-5 h-5" />} label="Поиск" active={currentView === 'search'} /></div>
+        <div onClick={() => navigate('liked')}><NavItem icon={<Heart className="w-5 h-5" />} label="Любимые треки" active={currentView === 'liked'} /></div>
       </nav>
 
-      <div className="p-6 border-t border-white/10">
+      <div className="p-6 border-t border-white/5">
         <button 
           onClick={() => setIsLegalOpen(true)}
           className="text-xs text-white/30 hover:text-white/60 cursor-pointer transition-colors text-left"
         >
-          Legal Disclaimer
+          Правовая информация
         </button>
       </div>
 
       {/* Modern, high-contrast Modal for Legal Disclaimer */}
       {isLegalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in animate-duration-200">
-          <div className="bg-[#0c0c0e] border border-white/10 rounded-2xl max-w-md w-full p-6 text-white relative shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in animate-duration-200">
+          <div className="bg-[#0b0b0e]/90 backdrop-blur-2xl border border-white/10 rounded-2xl max-w-md w-full p-6 text-white relative shadow-2xl">
             <button 
               onClick={() => setIsLegalOpen(false)}
               className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
@@ -51,7 +51,7 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
             
             <div className="flex items-center gap-2 mb-4">
               <SMLogo className="w-6 h-6 text-white" />
-              <h2 className="text-lg font-bold tracking-tight text-white">Legal Notice</h2>
+              <h2 className="text-lg font-bold tracking-tight text-white">Правовая информация</h2>
             </div>
             
             <div className="space-y-4 text-sm text-white/60 leading-relaxed mb-6 font-sans">
@@ -59,13 +59,8 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
                 Данная стриминг-платформа является исключительно <strong>независимым фанатским проектом</strong>, созданным в ознакомительных целях. 
               </p>
               <p>
-                Мы никак <strong>не связаны, не аффилированы и не спонсируемся</strong> социальной сетью <em>«share»</em> или её дочерними компаниями. Этот проект представляет собой авторскую концепцию, созданную исключительно из вдохновения оригинальным словом и страсти к музыке и технологиям.
+                Мы никак <strong>не связаны, не аффилированы и не спонсируемся</strong> оригинальной платформой. Этот проект представляет собой авторскую концепцию, созданную исключительно из вдохновения оригинальным словом и страсти к музыке и технологиям.
               </p>
-              <div className="border-t border-white/5 pt-3">
-                <p className="text-xs text-white/40">
-                  This streaming platform is an independent, non-commercial fan-made concept. We are not associated, affiliated, or endorsed by the official social network "share" or any related entities.
-                </p>
-              </div>
             </div>
 
             <button 
@@ -82,9 +77,9 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
 };
 
 const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean }> = ({ icon, label, active }) => (
-  <div className={`flex items-center gap-4 px-4 py-3 rounded-lg cursor-pointer transition-all duration-200 ${active ? 'bg-white text-black' : 'text-white/70 hover:text-white hover:bg-white/5'}`}>
+  <div className={`flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer transition-all duration-300 ${active ? 'glass-btn glass-btn-active text-white shadow-md shadow-black/30' : 'text-white/50 hover:text-white/90 hover:bg-white/5'}`}>
     {icon}
-    <span className="font-medium">{label}</span>
+    <span className="font-medium text-sm">{label}</span>
   </div>
 );
 

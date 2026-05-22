@@ -14,37 +14,37 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ playlist, onClick }) => {
 
   return (
     <div 
-      className="group relative bg-[#0a0a0a] p-3 border border-white/5 hover:border-white/20 transition-all duration-100 cursor-pointer"
+      className="group relative glass-card p-3.5 rounded-2xl cursor-pointer"
       onClick={() => onClick(playlist)}
     >
-      <div className="relative aspect-square mb-3 overflow-hidden border border-white/10">
+      <div className="relative aspect-square mb-3.5 overflow-hidden rounded-xl border border-white/5 shadow-inner">
         <img 
           src={artwork} 
           alt={playlist.title}
-          className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
+          className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110 ease-[cubic-bezier(0.16,1,0.3,1)]"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="w-10 h-10 bg-white rounded-none flex items-center justify-center text-black shadow-xl">
+        <div className="absolute inset-0 bg-black/45 backdrop-blur-[3px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+          <div className="w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center text-white shadow-lg rotate-0 group-hover:rotate-6 transition-all duration-300">
             <Play className="w-5 h-5 fill-current ml-0.5" />
           </div>
         </div>
         
         {/* Playlist tag */}
-        <div className="absolute top-2 left-2 bg-black px-2 py-0.5 text-[8px] font-mono uppercase border border-white/20 tracking-wider">
-          Playlist
+        <div className="absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2 py-0.5 text-[9px] font-medium text-white/90 uppercase rounded-md border border-white/10 tracking-wider">
+          Плейлист
         </div>
       </div>
       <div>
-        <h3 className="font-mono font-bold text-xs text-white truncate mb-0.5 uppercase tracking-wide">
+        <h3 className="font-semibold text-sm text-white/90 truncate group-hover:text-white transition-colors tracking-tight">
           {playlist.title}
         </h3>
-        <p className="text-[10px] text-white/50 truncate uppercase tracking-wider mb-1">
-          by {playlist.user?.username || 'Unknown User'}
+        <p className="text-xs text-white/40 truncate tracking-wide mt-0.5">
+          {playlist.user?.username || 'Unknown User'}
         </p>
-        <div className="text-[9px] font-mono text-white/40 uppercase tracking-widest flex items-center gap-1.5">
-          <FolderHeart className="w-3 h-3" />
-          {trackCount} tracks
+        <div className="text-[10px] font-mono text-white/35 mt-2 flex items-center gap-1.5 uppercase tracking-wide">
+          <FolderHeart className="w-3.5 h-3.5 text-white/40" />
+          <span>{trackCount} треков</span>
         </div>
       </div>
     </div>

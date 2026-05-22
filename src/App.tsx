@@ -33,28 +33,31 @@ const AppContent: React.FC = () => {
     }
   }, [recommendations, searchResults, likedTracks, view, isSearching]);
 
-  useEffect(() => {
-    const fetchRecs = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [recs, recPlaylists] = await Promise.all([
-          getRecommendations(),
-          searchPlaylists('Серега Пират') // Load popular/fun lists on home screen
-        ]);
-        
-        if (recs.length === 0) {
-          setError("Ошибка 403: SoundCloud заблокировал запрос. Попробуйте обновить Client ID в настройках.");
-        }
-        setRecommendations(recs);
-        setRecommendedPlaylists(recPlaylists);
-      } catch (err) {
-        console.error("Error loading recommendations and playlists:", err);
-      } finally {
-        setIsLoading(false);
+  const [recsOffset, setRecsOffset] = useState(0);
+
+  const fetchRecs = async (offset = 0) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [recs, recPlaylists] = await Promise.all([
+        getRecommendations(offset),
+        searchPlaylists('Серега Пират') // Load popular/fun lists on home screen
+      ]);
+      
+      if (recs.length === 0) {
+        setError("Ошибка 403: SoundCloud заблокировал запрос. Попробуйте обновить Client ID в настройках.");
       }
-    };
-    fetchRecs();
+      setRecommendations(recs);
+      setRecommendedPlaylists(recPlaylists);
+    } catch (err) {
+      console.error("Error loading recommendations and playlists:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecs(0);
   }, []);
 
   const [currentQuery, setCurrentQuery] = useState('');
@@ -113,19 +116,23 @@ const AppContent: React.FC = () => {
         return (
             <motion.section 
                 key="liked-songs"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
+                exit={{ opacity: 0, y: -30 }}
+                transition={{ type: "spring", stiffness: 100, damping: 18 }}
+                className="px-6 py-2 space-y-6"
             >
                 <div className="flex items-center gap-3">
                     <Heart className="w-6 h-6 text-red-500 fill-current" />
-                    <h2 className="text-3xl font-bold tracking-tight">Liked Songs</h2>
+                    <h2 className="text-2xl font-bold tracking-tight">Любимые треки</h2>
                 </div>
                 {likedTracks.length === 0 ? (
-                    <p className="text-white/50">You haven't liked any songs yet.</p>
+                    <div className="glass-panel rounded-2xl p-8 text-center max-w-md border border-white/5 mx-auto">
+                        <Heart className="w-8 h-8 text-white/20 mx-auto mb-3" />
+                        <p className="text-white/50 text-sm">Вы еще не добавили ни одного трека в любимые.</p>
+                    </div>
                 ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                         {likedTracks.map((track) => (
                             <TrackCard key={track.id} track={track} />
                         ))}
@@ -139,19 +146,20 @@ const AppContent: React.FC = () => {
         return (
             <motion.section 
                 key="search-results"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-8"
+                exit={{ opacity: 0, y: -30 }}
+                transition={{ type: "spring", stiffness: 100, damping: 18 }}
+                className="px-6 py-2 space-y-8"
             >
                 {/* Playlists Search Results */}
                 {playlistSearchResults.length > 0 && (
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <FolderHeart className="w-5 h-5 text-white/40" />
-                            <h2 className="text-xl font-bold tracking-tight uppercase">Playlists</h2>
+                            <h2 className="text-xl font-bold tracking-tight uppercase">Плейлисты</h2>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                             {playlistSearchResults.map((playlist) => (
                                 <PlaylistCard 
                                     key={playlist.id} 
@@ -170,12 +178,12 @@ const AppContent: React.FC = () => {
                 <div className="space-y-4">
                     <div className="flex items-center gap-3">
                         <Sparkles className="w-5 h-5 lg:w-6 lg:h-6 text-white/40" />
-                        <h2 className="text-xl font-bold tracking-tight uppercase">Tracks</h2>
+                        <h2 className="text-xl font-bold tracking-tight uppercase">Треки</h2>
                     </div>
                     {searchResults.length === 0 ? (
-                        <p className="text-white/50 text-xs font-mono uppercase tracking-wider">No separate tracks found.</p>
+                        <p className="text-white/50 text-xs font-mono uppercase tracking-wider">Отдельных треков не найдено.</p>
                     ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                             {searchResults.map((track) => (
                                 <TrackCard key={track.id} track={track} />
                             ))}
@@ -187,14 +195,14 @@ const AppContent: React.FC = () => {
                     <button 
                         onClick={handleLoadMore}
                         disabled={isLoadingMore}
-                        className="w-full py-4 bg-white/5 hover:bg-white/10 disabled:bg-white/2 disabled:opacity-50 text-white font-mono text-xs font-bold tracking-widest rounded-none border border-white/5 uppercase transition-all flex items-center justify-center gap-2"
+                        className="w-full max-w-xs mx-auto py-3.5 glass-btn hover:glass-btn-active disabled:opacity-50 text-white font-bold text-xs tracking-wider rounded-xl uppercase transition-all flex items-center justify-center gap-2"
                     >
                         {isLoadingMore ? (
                             <>
                                 <Loader2 className="w-4 h-4 animate-spin text-white/40" />
-                                LOADING...
+                                ЗАГРУЗКА...
                             </>
-                        ) : "LOAD MORE"}
+                        ) : "Загрузить еще"}
                     </button>
                 )}
             </motion.section>
@@ -202,16 +210,19 @@ const AppContent: React.FC = () => {
     }
 
     return (
-        <div className="space-y-10">
+        <motion.div 
+            key="home-sections"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -30 }}
+            transition={{ type: "spring", stiffness: 100, damping: 18 }}
+            className="space-y-10"
+        >
             {/* Recommended Playlists (Russia/Serega Pirat theme) */}
             {recommendedPlaylists.length > 0 && (
-                <motion.section 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="px-6 py-2 space-y-6"
-                >
+                <div className="px-6 py-2 space-y-6">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-xl font-bold uppercase tracking-widest text-white/40">Featured Playlists</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-white/40">Рекомендуемые плейлисты</h2>
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                         {recommendedPlaylists.slice(0, 6).map((playlist) => (
@@ -225,29 +236,22 @@ const AppContent: React.FC = () => {
                             />
                         ))}
                     </div>
-                </motion.section>
+                </div>
             )}
 
             {/* Recommendations */}
-            <motion.section 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="px-6 py-2 space-y-6"
-            >
+            <div className="px-6 py-2 space-y-6">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold uppercase tracking-widest text-white/40">Recommended Tracks</h2>
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-white/40">Рекомендуемые треки</h2>
                     <button 
                         onClick={async () => {
-                            setIsLoading(true);
-                            const recs = await getRecommendations();
-                            const recPlaylists = await searchPlaylists('Serega Pirat');
-                            setRecommendations(recs);
-                            setRecommendedPlaylists(recPlaylists);
-                            setIsLoading(false);
+                            const nextOffset = (recsOffset + 15) % 120;
+                            setRecsOffset(nextOffset);
+                            await fetchRecs(nextOffset);
                         }}
-                        className="text-xs font-bold font-mono text-white/40 hover:text-white transition-colors border border-white/10 px-3 py-1"
+                        className="text-xs font-bold text-white/60 hover:text-white transition-all glass-btn py-1.5 px-4 rounded-xl"
                     >
-                        REFRESH
+                        Обновить
                     </button>
                 </div>
                 
@@ -262,13 +266,18 @@ const AppContent: React.FC = () => {
                         ))}
                     </div>
                 )}
-            </motion.section>
-        </div>
+            </div>
+        </motion.div>
     );
   };
 
   return (
-      <div className="flex h-screen bg-[#050505] text-white overflow-hidden font-sans selection:bg-white selection:text-black relative">
+      <div className="flex h-screen bg-[#040406] text-white overflow-hidden font-sans selection:bg-white selection:text-black relative">
+        {/* Animated fluid blur spots for Liquid Glass theme */}
+        <div className="absolute top-[-10%] left-[-10%] w-[55vw] h-[55vw] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none animate-blob-1" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[55vw] h-[55vw] rounded-full bg-indigo-600/10 blur-[130px] pointer-events-none animate-blob-2" />
+        <div className="absolute top-[35%] right-[25%] w-[40vw] h-[40vw] rounded-full bg-purple-600/5 blur-[120px] pointer-events-none" />
+
         {/* Mobile Sidebar Overlay */}
         <AnimatePresence>
           {isSidebarOpen && (
@@ -277,22 +286,22 @@ const AppContent: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 lg:hidden"
+              className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 lg:hidden"
             />
           )}
         </AnimatePresence>
 
         {/* Sidebar */}
         <div className={`fixed inset-y-0 left-0 z-50 transform lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          <Sidebar onClose={() => setIsSidebarOpen(false)} onNavigate={(v) => { setView(v); setIsSearching(false); }} />
+          <Sidebar onClose={() => setIsSidebarOpen(false)} onNavigate={(v) => { setView(v); setIsSearching(false); }} currentView={view} />
         </div>
         
-        <main className="flex-1 flex flex-col relative overflow-y-auto pb-32 scrollbar-hide">
+        <main className="flex-1 flex flex-col relative overflow-y-auto pb-32 scrollbar-hide z-10 animate-fade-in">
           {/* Header / Search */}
-          <header className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-xl p-4 lg:p-8 flex items-center gap-4">
+          <header className="sticky top-0 z-40 glass-header p-4 lg:p-6 flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 hover:bg-white/5 rounded-lg transition-colors"
+              className="lg:hidden p-2 hover:bg-white/5 rounded-xl transition-colors shrink-0"
             >
               <SMLogo className="w-6 h-6 text-white" />
             </button>
@@ -302,10 +311,10 @@ const AppContent: React.FC = () => {
             </div>
 
             <div className="hidden sm:flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors cursor-pointer">
-                <SMLogo className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-white/40 hover:text-white hover:border-white/20 transition-all cursor-pointer">
+                <SMLogo size="18px" className="text-white" />
               </div>
-              <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center font-bold text-sm cursor-pointer hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center font-bold text-sm cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-md shadow-white/5">
                 Y
               </div>
             </div>
