@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import logoSrc from '../assets/images/logo_1779456215814.png';
 
 interface SMLogoProps {
   className?: string;
@@ -6,13 +7,36 @@ interface SMLogoProps {
   showBg?: boolean;
 }
 
-const SMLogo: React.FC<SMLogoProps> = ({ className = "text-white", size = "100%", showBg = false }) => {
+const SMLogo: React.FC<SMLogoProps> = ({ className = "text-white", size, showBg = false }) => {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Only apply inline style if a size is explicitly passed, allowing Tailwind class widths/heights to work by default
+  const style = size ? { width: size, height: size } : undefined;
+
+  // If the image file exists and hasn't failed, we load it directly
+  if (!imgFailed) {
+    return (
+      <div 
+        style={style} 
+        className={`flex items-center justify-center select-none shrink-0 overflow-hidden ${className}`}
+      >
+        <img 
+          src={logoSrc} 
+          alt="SM Logo" 
+          className="max-w-full max-h-full object-contain"
+          onError={() => setImgFailed(true)}
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
+  // Pure vector fallback representing the exact, mathematically perfect isometric "SM" Monogram from the photo
   return (
     <svg 
       viewBox="0 0 1000 1000" 
-      width={size} 
-      height={size} 
-      className={`${className} select-none`}
+      style={style}
+      className={`${className} select-none shrink-0`}
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -20,41 +44,30 @@ const SMLogo: React.FC<SMLogoProps> = ({ className = "text-white", size = "100%"
         <rect width="1000" height="1000" rx="200" fill="#000000" />
       )}
       
-      {/* 
-        This is a mathematically precise, gorgeous isometric "SM" Monogram.
-        We draw the monogram using direct horizontal-vertical coordinates on a 2D grid,
-        then apply a 30-degree vertical skew. This preserves uniform width, alignment, 
-        and symmetric shapes without any crooked lines or separate overlapping shapes.
-      */}
-      <g transform="translate(255, 291) scale(0.7) skewY(-30)">
-        {/* === Left "S" Glyph === */}
-        {/* Column 1 (Pillar A) Upper */}
-        <rect x="0" y="250" width="100" height="375" />
-        
-        {/* Column 1 (Pillar A) Lower */}
-        <rect x="0" y="800" width="100" height="100" />
-        
-        {/* S Top Ribbon */}
-        <rect x="100" y="250" width="100" height="100" />
-        
-        {/* S Middle Ribbon */}
-        <rect x="100" y="525" width="100" height="100" />
-        
-        {/* S Bottom Ribbon */}
-        <rect x="100" y="800" width="100" height="100" />
-        
-        {/* === Right "M" Glyph === */}
-        {/* Column 2 (Pillar B, shared Left Leg of M) */}
-        <rect x="200" y="100" width="100" height="800" />
-        
-        {/* M Top Connecting Bar */}
-        <rect x="300" y="100" width="300" height="100" />
-        
-        {/* Column 3 (Pillar C, Middle Leg of M) */}
-        <rect x="400" y="100" width="100" height="800" />
-        
-        {/* Column 4 (Pillar D, Right Leg of M) */}
-        <rect x="600" y="100" width="100" height="800" />
+      <g>
+        {/* Piece 1: Pillar 4 (M Right Pillar) */}
+        <polygon points="704,183 778,140 778,480 704,523" />
+         
+        {/* Piece 2: Pillar 3 (M Middle Pillar) */}
+        <polygon points="556,268 630,225 630,565 556,608" />
+         
+        {/* Piece 3: Column 2 (M Left / S Inner Pillar) */}
+        <polygon points="408,353 482,310 482,772 408,815" />
+         
+        {/* Piece 4: Column 1 Upper-Middle (S Left Pillar) */}
+        <polygon points="260,500 334,457 334,707 260,750" />
+         
+        {/* Piece 5: Column 1 Lower (S Bottom Left Leg) */}
+        <polygon points="260,800 334,757 334,857 260,900" />
+         
+        {/* Piece 6: S Top Ribbon */}
+        <polygon points="334,457 408,415 408,515 334,557" />
+         
+        {/* Piece 7: S Middle Ribbon */}
+        <polygon points="334,607 408,565 408,665 334,707" />
+         
+        {/* Piece 8: S Bottom Ribbon */}
+        <polygon points="334,757 408,715 408,815 334,857" />
       </g>
     </svg>
   );
