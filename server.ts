@@ -49,7 +49,7 @@ async function getValidClientId() {
 
 const BASE_URL = 'https://api-v2.soundcloud.com';
 
-async function startServer() {
+export async function startServer() {
   const app = express();
   const PORT = 3000;
 
@@ -490,9 +490,18 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  return app;
 }
 
-startServer();
+// Only start the listening server if we are running in a standalone Node.js process (e.g. Docker, VM) 
+// and NOT in a Serverless environment like Vercel.
+if (!process.env.VERCEL) {
+  startServer().then((app) => {
+    const PORT = 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }).catch((err) => {
+    console.error("Failed to start server:", err);
+  });
+}
