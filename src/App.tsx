@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
+import SMLogo from './components/SMLogo';
 import SearchBar from './components/SearchBar';
 import TrackCard from './components/TrackCard';
 import PlaylistCard from './components/PlaylistCard';
@@ -293,7 +294,7 @@ const AppContent: React.FC = () => {
               onClick={() => setIsSidebarOpen(true)}
               className="lg:hidden p-2 hover:bg-white/5 rounded-lg transition-colors"
             >
-              <Music className="w-6 h-6" />
+              <SMLogo className="w-6 h-6 text-white" />
             </button>
             
             <div className="flex-1">
@@ -302,7 +303,7 @@ const AppContent: React.FC = () => {
 
             <div className="hidden sm:flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors cursor-pointer">
-                <Music className="w-5 h-5" />
+                <SMLogo className="w-5 h-5 text-white" />
               </div>
               <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center font-bold text-sm cursor-pointer hover:scale-105 transition-transform">
                 Y

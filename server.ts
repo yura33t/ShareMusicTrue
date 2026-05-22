@@ -398,6 +398,84 @@ async function startServer() {
     }
   });
 
+  // Proxy endpoint to bypass Russian blockages on SoundCloud's image CDN (sndcdn.com)
+  app.get("/api/artwork-proxy", async (req, res) => {
+    try {
+      const { url } = req.query;
+      if (!url) {
+        return res.redirect("https://picsum.photos/seed/music/500/500");
+      }
+      
+      const targetUrl = url as string;
+      if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+        return res.redirect("https://picsum.photos/seed/music/500/500");
+      }
+
+      const response = await axios({
+        method: 'get',
+        url: targetUrl,
+        responseType: 'stream',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Referer': 'https://soundcloud.com/',
+        },
+        timeout: 8000 // Prevent hanging connections
+      });
+      
+      if (response.headers['content-type']) {
+        res.setHeader('content-type', response.headers['content-type']);
+      }
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      response.data.pipe(res);
+    } catch (error: any) {
+      console.warn("Artwork proxy warning:", error.message);
+      res.redirect("https://picsum.photos/seed/music/500/500");
+    }
+  });
+
+  // Proxy endpoint to bypass Russian blockages on SoundCloud's media stream CDNs
+  app.get("/api/stream-proxy", async (req, res) => {
+    try {
+      const { url } = req.query;
+      if (!url) {
+        return res.status(400).send("Stream URL is required");
+      }
+
+      const targetUrl = url as string;
+      if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+        return res.status(400).send("Invalid stream URL");
+      }
+
+      const response = await axios({
+        method: 'get',
+        url: targetUrl,
+        responseType: 'stream',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Referer': 'https://soundcloud.com/',
+          'Origin': 'https://soundcloud.com'
+        },
+        timeout: 15000
+      });
+      
+      if (response.headers['content-type']) {
+        res.setHeader('content-type', response.headers['content-type']);
+      }
+      if (response.headers['content-length']) {
+        res.setHeader('content-length', response.headers['content-length']);
+      }
+      if (response.headers['accept-ranges']) {
+        res.setHeader('accept-ranges', response.headers['accept-ranges']);
+      }
+      
+      response.data.pipe(res);
+    } catch (error: any) {
+      console.error("Audio stream proxy error:", error.message);
+      // Fallback music stream if it fails
+      res.redirect("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

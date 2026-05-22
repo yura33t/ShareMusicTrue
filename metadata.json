@@ -1,5 +1,6 @@
 {
   "name": "shareMusic",
   "description": "A minimalist music platform inspired by SoundCloud, featuring search and recommendations for the Russian audience.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

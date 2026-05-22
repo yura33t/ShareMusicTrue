@@ -8,8 +8,14 @@ export const getSafeArtworkUrl = (
   let safeUrl = url.replace(/^http:/, 'https:');
   
   if (safeUrl.includes('-large.')) {
-    return safeUrl.replace('-large.', `-${size}.`);
+     safeUrl = safeUrl.replace('-large.', `-${size}.`);
   }
+  
+  // Bypass CDN blockages for Russian users by proxying sndcdn.com images
+  if (safeUrl.includes('sndcdn.com')) {
+    return `/api/artwork-proxy?url=${encodeURIComponent(safeUrl)}`;
+  }
+  
   return safeUrl;
 };
 
@@ -163,7 +169,11 @@ export const getStreamUrl = async (track: SoundCloudTrack): Promise<string | nul
       },
     });
 
-    return response.data.url || null;
+    const rawUrl = response.data.url;
+    if (!rawUrl) return null;
+
+    // Proxy the audio stream stream to bypass Russian ISP blockages on SoundCloud's media CDNs
+    return `/api/stream-proxy?url=${encodeURIComponent(rawUrl)}`;
   } catch (error) {
     console.error('Error getting stream URL:', error);
     // Fallback to a royalty-free demo track if resolve fails
