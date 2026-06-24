@@ -31,15 +31,13 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
 
       {/* AADS Banner Ad */}
       <div className="px-6 py-4 flex flex-col items-center border-t border-white/5 bg-white/[0.01]">
-        <span className="text-[10px] text-white/30 tracking-widest uppercase font-mono mb-2.5">Реклама</span>
-        <div className="w-[145px] h-[145px] bg-black/40 rounded-xl flex items-center justify-center border border-white/5 overflow-hidden shadow-inner p-2.5">
-          <div style={{ width: '125px', height: '125px', zIndex: 99998, margin: 'auto' }}>
-            <iframe 
-              data-aa="2445570" 
-              src="//ad.a-ads.com/2445570/?size=125x125" 
-              style={{ border: 0, padding: 0, width: '125px', height: '125px', overflow: 'hidden', display: 'block', margin: 'auto' }}
-            />
-          </div>
+        <span className="text-[10px] text-white/30 tracking-widest uppercase font-mono mb-2">Реклама</span>
+        <div className="w-[130px] h-[130px] flex items-center justify-center bg-black/20 rounded-lg border border-white/5">
+          <iframe 
+            data-aa="2445570" 
+            src="//ad.a-ads.com/2445570/?size=125x125" 
+            style={{ border: 'none', padding: 0, width: '125px', height: '125px', overflow: 'hidden', display: 'block' }}
+          />
         </div>
       </div>
 
