@@ -29,6 +29,20 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
         <div onClick={() => navigate('liked')}><NavItem icon={<Heart className="w-5 h-5" />} label="Любимые треки" active={currentView === 'liked'} /></div>
       </nav>
 
+      {/* AADS Banner Ad */}
+      <div className="px-6 py-4 flex flex-col items-center border-t border-white/5 bg-white/[0.01]">
+        <span className="text-[10px] text-white/30 tracking-widest uppercase font-mono mb-2.5">Реклама</span>
+        <div className="w-[145px] h-[145px] bg-black/40 rounded-xl flex items-center justify-center border border-white/5 overflow-hidden shadow-inner p-2.5">
+          <div style={{ width: '125px', height: '125px', zIndex: 99998, margin: 'auto' }}>
+            <iframe 
+              data-aa="2445570" 
+              src="//ad.a-ads.com/2445570/?size=125x125" 
+              style={{ border: 0, padding: 0, width: '125px', height: '125px', overflow: 'hidden', display: 'block', margin: 'auto' }}
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="p-6 border-t border-white/5">
         <button 
           onClick={() => setIsLegalOpen(true)}
