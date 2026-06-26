@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, FolderHeart } from 'lucide-react';
 import { SoundCloudPlaylist, getSafeArtworkUrl } from '../services/soundcloud';
+import { motion } from 'motion/react';
 
 interface PlaylistCardProps {
   playlist: SoundCloudPlaylist;
@@ -13,8 +14,13 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ playlist, onClick }) => {
   const trackCount = playlist.track_count || (playlist.tracks ? playlist.tracks.length : 0);
 
   return (
-    <div 
-      className="group relative glass-card p-3.5 rounded-2xl cursor-pointer"
+    <motion.div 
+      whileHover={{ y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+      className="group relative glass-card p-3.5 rounded-2xl cursor-pointer select-none transition-shadow hover:shadow-[0_12px_30px_rgba(0,0,0,0.5)]"
       onClick={() => onClick(playlist)}
     >
       <div className="relative aspect-square mb-3.5 overflow-hidden rounded-xl border border-white/5 shadow-inner">
@@ -31,12 +37,12 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ playlist, onClick }) => {
         </div>
         
         {/* Playlist tag */}
-        <div className="absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2 py-0.5 text-[9px] font-medium text-white/90 uppercase rounded-md border border-white/10 tracking-wider">
+        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-0.5 text-[9px] font-semibold text-white/95 uppercase rounded-md border border-white/10 tracking-wider">
           Плейлист
         </div>
       </div>
       <div>
-        <h3 className="font-semibold text-sm text-white/90 truncate group-hover:text-white transition-colors tracking-tight">
+        <h3 className="font-semibold text-sm text-white/90 truncate group-hover:text-violet-300 transition-colors tracking-tight">
           {playlist.title}
         </h3>
         <p className="text-xs text-white/40 truncate tracking-wide mt-0.5">
@@ -47,7 +53,7 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({ playlist, onClick }) => {
           <span>{trackCount} треков</span>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

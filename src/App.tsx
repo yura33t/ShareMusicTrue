@@ -6,6 +6,7 @@ import TrackCard from './components/TrackCard';
 import PlaylistCard from './components/PlaylistCard';
 import PlaylistDetail from './components/PlaylistDetail';
 import Player from './components/Player';
+import RightPanel from './components/RightPanel';
 import { PlayerProvider, usePlayer } from './PlayerContext';
 import { getRecommendations, searchTracks, searchPlaylists, SoundCloudTrack, SoundCloudPlaylist } from './services/soundcloud';
 import { motion, AnimatePresence } from 'motion/react';
@@ -331,6 +332,8 @@ const AppContent: React.FC = () => {
             </AnimatePresence>
           </div>
         </main>
+
+        <RightPanel />
 
         <Player />
       </div>

@@ -5,6 +5,7 @@ import Hls from 'hls.js';
 interface PlayerContextType {
   currentTrack: SoundCloudTrack | null;
   isPlaying: boolean;
+  isLoading: boolean;
   playTrack: (track: SoundCloudTrack) => void;
   togglePlay: () => void;
   progress: number;
@@ -26,6 +27,7 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState<SoundCloudTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
@@ -37,11 +39,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   const currentTrackRef = useRef(currentTrack);
   const playlistRef = useRef(playlist);
+  const currentLoadingTrackIdRef = useRef<number | null>(null);
+  const playTrackRef = useRef<((track: SoundCloudTrack) => void) | null>(null);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
     playlistRef.current = playlist;
   }, [currentTrack, playlist]);
+
+  useEffect(() => {
+    playTrackRef.current = playTrack;
+  });
   
   useEffect(() => {
     localStorage.setItem('likedTracks', JSON.stringify(likedTracks));
@@ -68,7 +76,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const updateProgress = () => {
       setProgress(audio.currentTime);
-      setDuration(audio.duration || 0);
+      // Only overwrite duration if it's a valid positive number
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
     };
 
     const onEnded = () => {
@@ -80,7 +91,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (current && list) {
         const currentIndex = list.findIndex(t => t.id === current.id);
         if (currentIndex !== -1 && currentIndex < list.length - 1) {
-            playTrack(list[currentIndex + 1]);
+            if (playTrackRef.current) {
+              playTrackRef.current(list[currentIndex + 1]);
+            }
         }
       }
     };
@@ -109,59 +122,107 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const playTrack = async (track: SoundCloudTrack) => {
     if (!audioRef.current) return;
 
+    // Synchronously "unlock" the audio element within the user's click gesture
+    // so subsequent async stream loading can auto-start playing without browser block.
+    try {
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {});
+      }
+      audioRef.current.pause();
+    } catch (e) {}
+
     if (currentTrack?.id === track.id) {
       togglePlay();
       return;
     }
 
-    const streamUrl = await getStreamUrl(track);
-    if (!streamUrl) {
-      console.error('Could not get stream URL');
-      return;
+    // Set active loading track id
+    currentLoadingTrackIdRef.current = track.id;
+    setIsLoading(true);
+    setIsPlaying(false); // Reset playing indicator during load to avoid glitching
+    setProgress(0);
+    
+    // Instantly use metadata duration to prevent layout/text flickering in UI
+    if (track.duration) {
+      setDuration(track.duration / 1000);
+    } else {
+      setDuration(0);
     }
 
-    setCurrentTrack(track);
-    setProgress(0);
-    setIsPlaying(true);
+    // Pause current audio before fetching
+    audioRef.current.pause();
 
-    if (streamUrl.includes('.m3u8')) {
-      if (Hls.isSupported()) {
-        if (hlsRef.current) hlsRef.current.destroy();
-        const hls = new Hls();
-        hls.loadSource(streamUrl);
-        hls.attachMedia(audioRef.current);
-        hlsRef.current = hls;
-        hls.on(Hls.Events.MANIFEST_PARSED, async () => {
+    try {
+      const streamUrl = await getStreamUrl(track);
+      
+      // If user has switched to another track during the async fetch, abort!
+      if (currentLoadingTrackIdRef.current !== track.id) {
+        return;
+      }
+
+      if (!streamUrl) {
+        console.error('Could not get stream URL');
+        setIsLoading(false);
+        return;
+      }
+
+      setCurrentTrack(track);
+
+      if (streamUrl.includes('.m3u8')) {
+        if (Hls.isSupported()) {
+          if (hlsRef.current) hlsRef.current.destroy();
+          const hls = new Hls();
+          hls.loadSource(streamUrl);
+          hls.attachMedia(audioRef.current);
+          hlsRef.current = hls;
+          hls.on(Hls.Events.MANIFEST_PARSED, async () => {
+            if (currentLoadingTrackIdRef.current !== track.id) return;
+            try {
+              await audioRef.current?.play();
+              setIsPlaying(true);
+            } catch (err) {
+              console.warn('Play interrupted', err);
+              setIsPlaying(false);
+            } finally {
+              setIsLoading(false);
+            }
+          });
+        } else if (audioRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+          audioRef.current.src = streamUrl;
           try {
-            await audioRef.current?.play();
+            await audioRef.current.play();
+            setIsPlaying(true);
           } catch (err) {
             console.warn('Play interrupted', err);
             setIsPlaying(false);
+          } finally {
+            setIsLoading(false);
           }
-        });
-      } else if (audioRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        }
+      } else {
+        if (hlsRef.current) hlsRef.current.destroy();
         audioRef.current.src = streamUrl;
         try {
           await audioRef.current.play();
+          setIsPlaying(true);
         } catch (err) {
           console.warn('Play interrupted', err);
           setIsPlaying(false);
+        } finally {
+          setIsLoading(false);
         }
       }
-    } else {
-      if (hlsRef.current) hlsRef.current.destroy();
-      audioRef.current.src = streamUrl;
-      try {
-        await audioRef.current.play();
-      } catch (err) {
-        console.warn('Play interrupted', err);
-        setIsPlaying(false);
+    } catch (error) {
+      console.error('Error in playTrack:', error);
+      if (currentLoadingTrackIdRef.current === track.id) {
+        setIsLoading(false);
       }
     }
   };
 
   const togglePlay = async () => {
-    if (!audioRef.current || !currentTrack) return;
+    if (!audioRef.current || !currentTrack || isLoading) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -210,6 +271,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       value={{
         currentTrack,
         isPlaying,
+        isLoading,
         playTrack,
         togglePlay,
         progress,
@@ -230,6 +292,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     </PlayerContext.Provider>
   );
 };
+
+export default PlayerProvider;
 
 export const usePlayer = () => {
   const context = useContext(PlayerContext);

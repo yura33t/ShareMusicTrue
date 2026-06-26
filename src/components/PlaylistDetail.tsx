@@ -29,6 +29,10 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
           const detailed = await getPlaylistDetails(initialPlaylist.id);
           if (detailed) {
             setPlaylistData(detailed);
+            if (detailed.tracks && detailed.tracks.length > 0) {
+              setPlaylist(detailed.tracks);
+              playTrack(detailed.tracks[0]);
+            }
           } else {
             setError("Unable to load full playlist tracks.");
           }
@@ -39,6 +43,10 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
         }
       } else {
         setPlaylistData(initialPlaylist);
+        if (initialPlaylist.tracks && initialPlaylist.tracks.length > 0) {
+          setPlaylist(initialPlaylist.tracks);
+          playTrack(initialPlaylist.tracks[0]);
+        }
       }
     };
     
@@ -112,9 +120,11 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
 
           <div className="pt-2 flex justify-center md:justify-start">
             {tracks.length > 0 && (
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handlePlayPlaylist}
-                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 text-white font-bold text-xs uppercase tracking-widest py-3 px-6 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-md"
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 text-white font-bold text-xs uppercase tracking-widest py-3 px-6 rounded-xl transition-all shadow-md"
               >
                 {isPlaylistPlaying ? (
                   <>
@@ -125,7 +135,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
                     <Play className="w-4 h-4 fill-current text-white ml-0.5" /> СЛУШАТЬ ВСЕ
                   </>
                 )}
-              </button>
+              </motion.button>
             )}
           </div>
         </div>

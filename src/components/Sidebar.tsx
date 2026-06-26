@@ -11,26 +11,32 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
   };
 
   return (
-    <div className="w-64 glass-panel text-white h-screen flex flex-col border-r border-white/5 relative">
+    <div className="w-64 shrink-0 glass-panel text-white h-screen flex flex-col border-r border-white/5 relative overflow-hidden">
       <button 
         onClick={onClose}
-        className="lg:hidden absolute top-6 right-4 p-2 text-white/50 hover:text-white"
+        className="lg:hidden absolute top-6 right-4 p-2 text-white/50 hover:text-white z-20"
       >
         <PlusSquare className="w-6 h-6 rotate-45" />
       </button>
 
-      <div className="p-6 flex items-center gap-3">
-        <SMLogo className="w-8 h-8 text-white" />
-        <h1 className="text-2xl font-bold tracking-tighter font-sans bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">shareMusic</h1>
+      {/* Main scrollable area for content */}
+      <div className="flex-1 overflow-y-auto flex flex-col scrollbar-hide">
+        {/* Logo */}
+        <div className="p-6 flex items-center gap-3 shrink-0">
+          <SMLogo className="w-8 h-8 text-white" />
+          <h1 className="text-2xl font-bold tracking-tighter font-sans bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">shareMusic</h1>
+        </div>
+
+        {/* Navigation */}
+        <nav className="px-4 space-y-2.5 shrink-0 mb-6">
+          <div onClick={() => navigate('home')}><NavItem icon={<Home className="w-5 h-5" />} label="Главная" active={currentView === 'home' || currentView === 'playlist-detail'} /></div>
+          <div onClick={() => navigate('search')}><NavItem icon={<Search className="w-5 h-5" />} label="Поиск" active={currentView === 'search'} /></div>
+          <div onClick={() => navigate('liked')}><NavItem icon={<Heart className="w-5 h-5" />} label="Любимые треки" active={currentView === 'liked'} /></div>
+        </nav>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2.5 overflow-y-auto scrollbar-hide">
-        <div onClick={() => navigate('home')}><NavItem icon={<Home className="w-5 h-5" />} label="Главная" active={currentView === 'home' || currentView === 'playlist-detail'} /></div>
-        <div onClick={() => navigate('search')}><NavItem icon={<Search className="w-5 h-5" />} label="Поиск" active={currentView === 'search'} /></div>
-        <div onClick={() => navigate('liked')}><NavItem icon={<Heart className="w-5 h-5" />} label="Любимые треки" active={currentView === 'liked'} /></div>
-      </nav>
-
-      <div className="p-6 border-t border-white/5">
+      {/* Persistent bottom legal area */}
+      <div className="p-5 border-t border-white/5 bg-black/20 shrink-0">
         <button 
           onClick={() => setIsLegalOpen(true)}
           className="text-xs text-white/30 hover:text-white/60 cursor-pointer transition-colors text-left"

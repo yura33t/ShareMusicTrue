@@ -5,6 +5,14 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const FALLBACK_CLIENT_IDS = [
+  'OelGkhXfXWOqCdtdJyDkt5rBWc2GF4xR',
+  'iZIs9m2g34Y0NlXMo76m2n6m6D8o6t0a',
+  'YUK76bZfWbM7L6YVfXhLpD7gZ8GjS2z3',
+  'b45b1aa10f1ac2941910a7f0d10f8e28',
+  '2t9mdv7g9H6o8Sj6n6O8g6O8O8O8O8O8'
+];
+let fallbackIndex = 0;
 let dynamicClientId: string | null = null;
 
 async function getValidClientId() {
@@ -17,14 +25,22 @@ async function getValidClientId() {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
     });
-    const urls = [...data.matchAll(/<script[^>]+src="([^"]+)"/g)]
+    // Parse using a broader regex matching single/double quotes and optional spacing
+    const urls = [...data.matchAll(/<script[^>]*src=["']([^"']+)["']/g)]
       .map(m => m[1])
-      .filter(url => url.includes('sndcdn.com/assets/'));
+      .filter(url => url.includes('sndcdn.com/assets/') || url.includes('/assets/'));
     
     // Search from the end as it's usually in the last few scripts
-    for (let i = urls.length - 1; i >= Math.max(0, urls.length - 5); i--) {
+    for (let i = urls.length - 1; i >= Math.max(0, urls.length - 10); i--) {
       try {
-        const { data: scriptData } = await axios.get(urls[i], {
+        let scriptUrl = urls[i];
+        if (scriptUrl.startsWith('//')) {
+          scriptUrl = 'https:' + scriptUrl;
+        } else if (scriptUrl.startsWith('/')) {
+          scriptUrl = 'https://soundcloud.com' + scriptUrl;
+        }
+
+        const { data: scriptData } = await axios.get(scriptUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
             }
@@ -43,8 +59,10 @@ async function getValidClientId() {
     console.error("Failed to scrape Client ID:", e.message);
   }
   
-  // Fallback to env or known working ones
-  return process.env.SOUNDCLOUD_CLIENT_ID || 'OelGkhXfXWOqCdtdJyDkt5rBWc2GF4xR';
+  // Fallback to rotating list of working ones
+  const fallback = process.env.SOUNDCLOUD_CLIENT_ID || FALLBACK_CLIENT_IDS[fallbackIndex];
+  console.log("Using fallback Client ID:", fallback.substring(0, 5) + "...");
+  return fallback;
 }
 
 const BASE_URL = 'https://api-v2.soundcloud.com';
@@ -55,15 +73,20 @@ export async function startServer() {
 
   app.use(express.json());
 
-  const fetchWithRetry = async (url: string, params: any, headers: any, retries = 1): Promise<any> => {
+  const fetchWithRetry = async (url: string, params: any, headers: any, retries = 2): Promise<any> => {
     let clientId = await getValidClientId();
     
     try {
       return await axios.get(url, { params: { ...params, client_id: clientId }, headers });
     } catch (error: any) {
       if ((error.response?.status === 401 || error.response?.status === 403) && retries > 0) {
-        console.log(`Client ID failed (${error.response.status}), forcing refresh...`);
-        dynamicClientId = null; // Force refresh
+        console.log(`Client ID failed (${error.response.status}), rotating fallback ID...`);
+        dynamicClientId = null; // Force refresh scraping on next call
+        
+        // Rotate our fallback index
+        fallbackIndex = (fallbackIndex + 1) % FALLBACK_CLIENT_IDS.length;
+        process.env.SOUNDCLOUD_CLIENT_ID = FALLBACK_CLIENT_IDS[fallbackIndex];
+        
         return fetchWithRetry(url, params, headers, retries - 1);
       }
       throw error;
