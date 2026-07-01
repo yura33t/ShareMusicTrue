@@ -423,9 +423,12 @@ export async function startServer() {
       "популярный рэп"
     ];
     
+    // Shuffle the keywords so different queries are requested and interleaved first on every page load
+    const shuffledKeywords = [...trendingKeywords].sort(() => Math.random() - 0.5);
+    
     try {
       // Fetch results for all curated trending keywords in parallel for maximum speed
-      const searchPromises = trendingKeywords.map(async (kw) => {
+      const searchPromises = shuffledKeywords.map(async (kw) => {
         try {
           const response = await fetchWithRetry(`${BASE_URL}/search/tracks`, {
             q: kw,
@@ -463,8 +466,11 @@ export async function startServer() {
         }
       }
       
-      console.log(`[Charts] Successfully compiled ${mergedTracks.length} trending tracks.`);
-      return res.json({ collection: mergedTracks.slice(0, parsedLimit) });
+      // Fully shuffle the merged collection to ensure maximum randomness and variety on page reload
+      const randomizedTracks = mergedTracks.sort(() => Math.random() - 0.5);
+      
+      console.log(`[Charts] Successfully compiled ${randomizedTracks.length} trending tracks.`);
+      return res.json({ collection: randomizedTracks.slice(0, parsedLimit) });
     } catch (fallbackTotalError: any) {
       console.error("[Charts] Error compiling fallback search tracks:", fallbackTotalError.message);
       return res.json({ collection: [] });

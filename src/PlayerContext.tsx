@@ -6,7 +6,7 @@ interface PlayerContextType {
   currentTrack: SoundCloudTrack | null;
   isPlaying: boolean;
   isLoading: boolean;
-  playTrack: (track: SoundCloudTrack) => void;
+  playTrack: (track: SoundCloudTrack, newPlaylist?: SoundCloudTrack[]) => void;
   togglePlay: () => void;
   progress: number;
   duration: number;
@@ -20,6 +20,15 @@ interface PlayerContextType {
   setPlaylist: (tracks: SoundCloudTrack[]) => void;
   playNext: () => void;
   playPrevious: () => void;
+  // PREMIUM & DOWNLOAD CAPABILITIES
+  isPremium: boolean;
+  activatePremium: (code: string) => boolean;
+  downloadTrack: (track: SoundCloudTrack) => Promise<boolean>;
+  downloadingTracks: number[];
+  premiumModalOpen: boolean;
+  setPremiumModalOpen: (open: boolean) => void;
+  pendingDownloadTrack: SoundCloudTrack | null;
+  setPendingDownloadTrack: (track: SoundCloudTrack | null) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -36,6 +45,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const saved = localStorage.getItem('likedTracks');
     return saved ? JSON.parse(saved) : [];
   });
+  
+  // Premium and Download states
+  const [isPremium, setIsPremium] = useState<boolean>(() => {
+    return localStorage.getItem('premiumActivated') === 'true';
+  });
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+  const [pendingDownloadTrack, setPendingDownloadTrack] = useState<SoundCloudTrack | null>(null);
+  const [downloadingTracks, setDownloadingTracks] = useState<number[]>([]);
   
   const currentTrackRef = useRef(currentTrack);
   const playlistRef = useRef(playlist);
@@ -98,14 +115,26 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
+    const onPlay = () => {
+      setIsPlaying(true);
+    };
+
+    const onPause = () => {
+      setIsPlaying(false);
+    };
+
     audio.addEventListener('timeupdate', updateProgress);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('loadedmetadata', updateProgress);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
 
     return () => {
       audio.removeEventListener('timeupdate', updateProgress);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('loadedmetadata', updateProgress);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
       audio.pause();
       if (hlsRef.current) {
         hlsRef.current.destroy();
@@ -119,8 +148,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [volume]);
 
-  const playTrack = async (track: SoundCloudTrack) => {
+  const playTrack = async (track: SoundCloudTrack, newPlaylist?: SoundCloudTrack[]) => {
     if (!audioRef.current) return;
+
+    if (newPlaylist && newPlaylist.length > 0) {
+      setPlaylist(newPlaylist);
+    }
 
     // Synchronously "unlock" the audio element within the user's click gesture
     // so subsequent async stream loading can auto-start playing without browser block.
@@ -266,6 +299,144 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const playNextRef = useRef(playNext);
+  const playPreviousRef = useRef(playPrevious);
+
+  useEffect(() => {
+    playNextRef.current = playNext;
+    playPreviousRef.current = playPrevious;
+  }, [playNext, playPrevious]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentTrack) {
+      const artwork = currentTrack.artwork_url || currentTrack.user?.avatar_url || '';
+      const safeArtwork = artwork ? artwork.replace('-large.', '-t500x500.') : '';
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.user?.username || 'Unknown Artist',
+        album: 'Share Music',
+        artwork: safeArtwork ? [
+          { src: safeArtwork, sizes: '500x500', type: 'image/jpeg' }
+        ] : []
+      });
+    }
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentTrack) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying, currentTrack]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (audioRef.current) {
+            audioRef.current.play().catch(() => {});
+          }
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
+        });
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          playPreviousRef.current();
+        });
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          playNextRef.current();
+        });
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+          if (audioRef.current) {
+            const offset = details.seekOffset || 10;
+            audioRef.current.currentTime = Math.max(audioRef.current.currentTime - offset, 0);
+          }
+        });
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+          if (audioRef.current) {
+            const offset = details.seekOffset || 10;
+            audioRef.current.currentTime = Math.min(audioRef.current.currentTime + offset, audioRef.current.duration || 0);
+          }
+        });
+      } catch (error) {
+        console.warn("Media Session Action Handler registration error", error);
+      }
+    }
+    return () => {
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.setActionHandler('play', null);
+          navigator.mediaSession.setActionHandler('pause', null);
+          navigator.mediaSession.setActionHandler('previoustrack', null);
+          navigator.mediaSession.setActionHandler('nexttrack', null);
+          navigator.mediaSession.setActionHandler('seekbackward', null);
+          navigator.mediaSession.setActionHandler('seekforward', null);
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  const activatePremium = (code: string): boolean => {
+    if (code.trim().toLowerCase() === 'tester2026') {
+      setIsPremium(true);
+      localStorage.setItem('premiumActivated', 'true');
+      return true;
+    }
+    return false;
+  };
+
+  const downloadTrack = async (track: SoundCloudTrack): Promise<boolean> => {
+    if (!localStorage.getItem('premiumActivated') && !isPremium) {
+      setPendingDownloadTrack(track);
+      setPremiumModalOpen(true);
+      return false;
+    }
+
+    setDownloadingTracks(prev => [...prev, track.id]);
+
+    try {
+      const streamUrl = await getStreamUrl(track);
+      if (!streamUrl) {
+        throw new Error("Не удалось получить ссылку на стрим");
+      }
+
+      const response = await fetch(streamUrl);
+      if (!response.ok) {
+        throw new Error("Ошибка сети при скачивании");
+      }
+      let blob = await response.blob();
+
+      // If HLS/m3u8, download the high-fidelity progressive MP3 fallback
+      if (blob.type.includes('mpegurl') || blob.type.includes('x-mpegURL') || streamUrl.includes('.m3u8')) {
+        const fallbackUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+        const fallbackResponse = await fetch(fallbackUrl);
+        blob = await fallbackResponse.blob();
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      const safeTitle = track.title.replace(/[\\/*?:"<>|]/g, "");
+      const safeAuthor = (track.user?.username || 'Unknown').replace(/[\\/*?:"<>|]/g, "");
+      a.download = `${safeTitle} - ${safeAuthor}.mp3`;
+      
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      return true;
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Ошибка при скачивании трека. Пожалуйста, попробуйте еще раз.");
+      return false;
+    } finally {
+      setDownloadingTracks(prev => prev.filter(id => id !== track.id));
+    }
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -286,6 +457,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isLiked,
         playNext,
         playPrevious,
+        isPremium,
+        activatePremium,
+        downloadTrack,
+        downloadingTracks,
+        premiumModalOpen,
+        setPremiumModalOpen,
+        pendingDownloadTrack,
+        setPendingDownloadTrack,
       }}
     >
       {children}

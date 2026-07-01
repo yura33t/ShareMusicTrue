@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Play, Pause, Heart, Clock, Loader2, Music } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Heart, Clock, Loader2, Music, Download } from 'lucide-react';
 import { SoundCloudTrack, searchTracks, getSafeArtworkUrl } from '../services/soundcloud';
 import { usePlayer } from '../PlayerContext';
 import { motion } from 'motion/react';
@@ -14,7 +14,7 @@ interface ArtistDetailProps {
 }
 
 const ArtistDetail: React.FC<ArtistDetailProps> = ({ artist, onBack }) => {
-  const { currentTrack, isPlaying, playTrack, setPlaylist, isLiked, toggleLike } = usePlayer();
+  const { currentTrack, isPlaying, playTrack, setPlaylist, isLiked, toggleLike, downloadTrack, downloadingTracks } = usePlayer();
   const [tracks, setTracks] = useState<SoundCloudTrack[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -207,12 +207,26 @@ const ArtistDetail: React.FC<ArtistDetailProps> = ({ artist, onBack }) => {
                       {formatDuration(track.duration)}
                     </td>
                     <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button 
-                        onClick={() => toggleLike(track)}
-                        className={`p-1.5 rounded-full hover:bg-white/5 transition-colors ${fav ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-300'}`}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${fav ? 'fill-current' : ''}`} />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button 
+                          onClick={() => downloadTrack(track)}
+                          className="p-1.5 rounded-full hover:bg-white/5 text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"
+                          title="Скачать трек"
+                        >
+                          {downloadingTracks.includes(track.id) ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <button 
+                          onClick={() => toggleLike(track)}
+                          className={`p-1.5 rounded-full hover:bg-white/5 transition-colors ${fav ? 'text-red-500' : 'text-zinc-500 hover:text-zinc-200'}`}
+                          title="В любимые"
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${fav ? 'fill-current' : ''}`} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Play, Pause, Heart, Clock, Loader2, Music } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Heart, Clock, Loader2, Music, Download } from 'lucide-react';
 import { SoundCloudPlaylist, SoundCloudTrack, getPlaylistDetails, getSafeArtworkUrl } from '../services/soundcloud';
 import { usePlayer } from '../PlayerContext';
 import { motion } from 'motion/react';
@@ -10,7 +10,7 @@ interface PlaylistDetailProps {
 }
 
 const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlaylist, onBack }) => {
-  const { currentTrack, isPlaying, playTrack, setPlaylist, isLiked, toggleLike } = usePlayer();
+  const { currentTrack, isPlaying, playTrack, setPlaylist, isLiked, toggleLike, downloadTrack, downloadingTracks } = usePlayer();
   const [playlist, setPlaylistData] = useState<SoundCloudPlaylist>(initialPlaylist);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,10 +29,6 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
           const detailed = await getPlaylistDetails(initialPlaylist.id);
           if (detailed) {
             setPlaylistData(detailed);
-            if (detailed.tracks && detailed.tracks.length > 0) {
-              setPlaylist(detailed.tracks);
-              playTrack(detailed.tracks[0]);
-            }
           } else {
             setError("Unable to load full playlist tracks.");
           }
@@ -43,10 +39,6 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
         }
       } else {
         setPlaylistData(initialPlaylist);
-        if (initialPlaylist.tracks && initialPlaylist.tracks.length > 0) {
-          setPlaylist(initialPlaylist.tracks);
-          playTrack(initialPlaylist.tracks[0]);
-        }
       }
     };
     
@@ -224,12 +216,26 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
                       {formatDuration(track.duration)}
                     </td>
                     <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button 
-                        onClick={() => toggleLike(track)}
-                        className={`p-1.5 rounded-full hover:bg-white/5 transition-colors ${fav ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-300'}`}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${fav ? 'fill-current' : ''}`} />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button 
+                          onClick={() => downloadTrack(track)}
+                          className="p-1.5 rounded-full hover:bg-white/5 text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"
+                          title="Скачать трек"
+                        >
+                          {downloadingTracks.includes(track.id) ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <button 
+                          onClick={() => toggleLike(track)}
+                          className={`p-1.5 rounded-full hover:bg-white/5 transition-colors ${fav ? 'text-red-500' : 'text-zinc-500 hover:text-zinc-200'}`}
+                          title="В любимые"
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${fav ? 'fill-current' : ''}`} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

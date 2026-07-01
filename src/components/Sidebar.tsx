@@ -113,13 +113,13 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
 };
 
 const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean }> = ({ icon, label, active }) => (
-  <div className={`flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer transition-all duration-200 ${
+  <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
     active 
-      ? 'text-[#3b82f6] font-semibold' 
+      ? 'text-white font-bold bg-[#3b82f6]/10 border border-[#3b82f6]/25' 
       : 'text-zinc-500 hover:text-zinc-200'
   }`}>
-    {icon}
-    <span className="text-[15px]">{label}</span>
+    <span className={active ? 'text-[#3b82f6]' : 'text-zinc-500'}>{icon}</span>
+    <span className="text-xs font-bold tracking-wider uppercase font-display">{label}</span>
   </div>
 );
 

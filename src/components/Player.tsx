@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, ChevronDown, Heart, Loader2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, ChevronDown, Heart, Loader2, Download } from 'lucide-react';
 import { usePlayer } from '../PlayerContext';
 import { getSafeArtworkUrl } from '../services/soundcloud';
 import { format } from 'date-fns';
@@ -61,10 +61,10 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({ formatTime }) => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={togglePlay}
-          className="w-16 h-16 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+          className="w-16 h-16 bg-white hover:bg-zinc-200 text-black rounded-full flex items-center justify-center shadow-lg transition-colors animate-none"
         >
           {isLoading ? (
-            <Loader2 className="w-6 h-6 animate-spin text-white" />
+            <Loader2 className="w-6 h-6 animate-spin text-black" />
           ) : isPlaying ? (
             <Pause className="w-6 h-6 fill-current" />
           ) : (
@@ -85,7 +85,7 @@ const PlayerControls: React.FC<PlayerControlsProps> = ({ formatTime }) => {
 };
 
 const Player: React.FC = () => {
-  const { currentTrack, isPlaying, isLoading, togglePlay, progress, isLiked, toggleLike } = usePlayer();
+  const { currentTrack, isPlaying, isLoading, togglePlay, progress, isLiked, toggleLike, downloadTrack, downloadingTracks, playNext, playPrevious } = usePlayer();
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!currentTrack) return null;
@@ -120,7 +120,7 @@ const Player: React.FC = () => {
               {isPlaying && !isLoading && (
                 <span className="flex items-end gap-[1.5px] h-3 shrink-0 pb-[1px]">
                   <span className="w-[1.5px] h-full bg-[#3b82f6] rounded-full animate-soundwave-mini" style={{ animationDelay: '0s' }}></span>
-                  <span className="w-[1.5px] h-full bg-[#60a5fa] rounded-full animate-soundwave-mini" style={{ animationDelay: '0.15s' }}></span>
+                  <span className="w-[1.5px] h-full bg-zinc-400 rounded-full animate-soundwave-mini" style={{ animationDelay: '0.15s' }}></span>
                   <span className="w-[1.5px] h-full bg-[#3b82f6] rounded-full animate-soundwave-mini" style={{ animationDelay: '0.3s' }}></span>
                 </span>
               )}
@@ -129,6 +129,19 @@ const Player: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              playPrevious();
+            }} 
+            className="w-8 h-8 hover:bg-white/[0.05] rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+            title="Предыдущий трек"
+          >
+            <SkipBack className="w-4 h-4 fill-current" />
+          </motion.button>
+
           <motion.button 
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -145,6 +158,19 @@ const Player: React.FC = () => {
             ) : (
               <Play className="w-4 h-4 ml-0.5" />
             )}
+          </motion.button>
+
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              playNext();
+            }} 
+            className="w-8 h-8 hover:bg-white/[0.05] rounded-full flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+            title="Следующий трек"
+          >
+            <SkipForward className="w-4 h-4 fill-current" />
           </motion.button>
         </div>
       </div>
@@ -187,7 +213,7 @@ const Player: React.FC = () => {
                         animationDelay: isPlaying && !isLoading ? `${delay}s` : '0s',
                         animationPlayState: isPlaying && !isLoading ? 'running' : 'paused'
                       }}
-                      className="w-[3px] h-8 rounded-full bg-[#3b82f6] animate-soundwave opacity-70"
+                      className="w-[3px] h-8 rounded-full bg-[#3b82f6] animate-soundwave opacity-80"
                     />
                   );
                 })}
@@ -198,12 +224,25 @@ const Player: React.FC = () => {
                     <h1 className="text-base font-bold text-white uppercase tracking-tight leading-tight truncate">{currentTrack.title}</h1>
                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mt-1">{currentTrack.user?.username || 'Unknown Author'}</p>
                 </div>
-                <button 
-                    onClick={() => toggleLike(currentTrack)}
-                    className={`p-2.5 rounded-full hover:bg-white/5 transition-colors shrink-0 ${isLiked(currentTrack.id) ? 'text-red-500' : 'text-zinc-500 hover:text-zinc-300'}`}
-                >
-                    <Heart className={`w-5 h-5 ${isLiked(currentTrack.id) ? 'fill-current' : ''}`} />
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button 
+                      onClick={() => downloadTrack(currentTrack)}
+                      className="p-2.5 rounded-full hover:bg-white/5 transition-colors text-zinc-500 hover:text-zinc-300"
+                      title="Скачать трек"
+                  >
+                      {downloadingTracks.includes(currentTrack.id) ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                      ) : (
+                        <Download className="w-5 h-5" />
+                      )}
+                  </button>
+                  <button 
+                      onClick={() => toggleLike(currentTrack)}
+                      className={`p-2.5 rounded-full hover:bg-white/5 transition-colors shrink-0 ${isLiked(currentTrack.id) ? 'text-red-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                      <Heart className={`w-5 h-5 ${isLiked(currentTrack.id) ? 'fill-current' : ''}`} />
+                  </button>
+                </div>
               </div>
               <PlayerControls formatTime={formatTime} />
             </div>

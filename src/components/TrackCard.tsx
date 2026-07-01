@@ -1,18 +1,20 @@
 import React from 'react';
-import { Play, Pause, Heart } from 'lucide-react';
+import { Play, Pause, Heart, Download, Loader2 } from 'lucide-react';
 import { SoundCloudTrack, getSafeArtworkUrl } from '../services/soundcloud';
 import { usePlayer } from '../PlayerContext';
 import { motion } from 'motion/react';
 
 interface TrackCardProps {
   track: SoundCloudTrack;
+  contextPlaylist?: SoundCloudTrack[];
 }
 
-const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
-  const { currentTrack, isPlaying, playTrack, isLiked, toggleLike } = usePlayer();
+const TrackCard: React.FC<TrackCardProps> = ({ track, contextPlaylist }) => {
+  const { currentTrack, isPlaying, playTrack, isLiked, toggleLike, downloadTrack, downloadingTracks } = usePlayer();
   const isCurrent = currentTrack?.id === track.id;
   const isActive = isCurrent && isPlaying;
   const liked = isLiked(track.id);
+  const isDownloading = downloadingTracks.includes(track.id);
 
   const artwork = getSafeArtworkUrl(track.artwork_url || track.user?.avatar_url, 't500x500');
 
@@ -26,7 +28,7 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
       className={`group relative p-3 rounded-2xl cursor-pointer select-none transition-all duration-200 ${
         isCurrent ? 'bg-[#151b2c] border border-blue-500/25' : 'bg-[#121215] hover:bg-[#16161d] border border-white/[0.02]'
       }`}
-      onClick={() => playTrack(track)}
+      onClick={() => playTrack(track, contextPlaylist)}
     >
       <div className="relative aspect-square mb-3 overflow-hidden rounded-xl bg-zinc-900 border border-white/[0.04]">
         <img 
@@ -56,12 +58,26 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
           <h3 className={`font-bold text-sm uppercase tracking-tight truncate leading-tight ${isCurrent ? 'text-blue-400' : 'text-zinc-100 group-hover:text-white'}`}>{track.title}</h3>
           <p className="text-xs text-zinc-500 truncate tracking-wide mt-1">{track.user?.username || 'Unknown Author'}</p>
         </div>
-        <button 
-          onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
-          className={`p-1 rounded-full transition-colors hover:bg-white/5 shrink-0 ${liked ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-300'}`}
-        >
-          <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button 
+            onClick={(e) => { e.stopPropagation(); downloadTrack(track); }}
+            className={`p-1.5 rounded-full transition-colors hover:bg-white/5 text-zinc-500 hover:text-zinc-200 shrink-0`}
+            title="Скачать трек"
+          >
+            {isDownloading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+            className={`p-1.5 rounded-full transition-colors hover:bg-white/5 shrink-0 ${liked ? 'text-red-500' : 'text-zinc-500 hover:text-zinc-200'}`}
+            title="В любимые"
+          >
+            <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
+          </button>
+        </div>
       </div>
     </motion.div>
   );

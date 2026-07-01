@@ -9,6 +9,7 @@ import ArtistDetail from './components/ArtistDetail';
 import Settings from './components/Settings';
 import Player from './components/Player';
 import RightPanel from './components/RightPanel';
+import PremiumModal from './components/PremiumModal';
 import { PlayerProvider, usePlayer } from './PlayerContext';
 import { getRecommendations, searchTracks, searchPlaylists, SoundCloudTrack, SoundCloudPlaylist } from './services/soundcloud';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,7 +35,7 @@ const AppContent: React.FC = () => {
   const [recommendedPlaylists, setRecommendedPlaylists] = useState<SoundCloudPlaylist[]>([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState<SoundCloudPlaylist | null>(null);
   const [selectedArtist, setSelectedArtist] = useState<{ id: number; username: string; avatar_url: string } | null>(null);
-  const [playlistQueryIndex, setPlaylistQueryIndex] = useState(0);
+  const [playlistQueryIndex, setPlaylistQueryIndex] = useState(() => Math.floor(Math.random() * PLAYLIST_QUERIES.length));
   const [isLoading, setIsLoading] = useState(false);
   const [isPlaylistsLoading, setIsPlaylistsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -54,12 +55,7 @@ const AppContent: React.FC = () => {
     localStorage.removeItem('app-font');
   }, []);
 
-  useEffect(() => {
-    // If we're looking at a specific playlist or artist, we don't overwrite playback queue with home/search unless we click a song
-    if (view !== 'playlist-detail' && view !== 'artist-detail') {
-      setPlaylist(view === 'liked' ? likedTracks : (isSearching ? searchResults : recommendations));
-    }
-  }, [recommendations, searchResults, likedTracks, view, isSearching]);
+
 
   const [recsOffset, setRecsOffset] = useState(0);
 
@@ -102,7 +98,7 @@ const AppContent: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchRecs(0, 0);
+    fetchRecs(0, playlistQueryIndex);
   }, []);
 
   const [currentQuery, setCurrentQuery] = useState('');
@@ -204,7 +200,7 @@ const AppContent: React.FC = () => {
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                         {likedTracks.map((track) => (
-                            <TrackCard key={track.id} track={track} />
+                            <TrackCard key={track.id} track={track} contextPlaylist={likedTracks} />
                         ))}
                     </div>
                 )}
@@ -256,7 +252,7 @@ const AppContent: React.FC = () => {
                         ) : (
                             <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                                 {searchResults.map((track) => (
-                                    <TrackCard key={track.id} track={track} />
+                                    <TrackCard key={track.id} track={track} contextPlaylist={searchResults} />
                                 ))}
                             </div>
                         )}
@@ -389,7 +385,7 @@ const AppContent: React.FC = () => {
                 ) : (
                     <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                         {recommendations.slice(0, 12).map((track) => (
-                            <TrackCard key={track.id} track={track} />
+                            <TrackCard key={track.id} track={track} contextPlaylist={recommendations} />
                         ))}
                     </div>
                 )}
@@ -486,6 +482,8 @@ const AppContent: React.FC = () => {
         <RightPanel />
 
         <Player />
+
+        <PremiumModal />
       </div>
   );
 };
