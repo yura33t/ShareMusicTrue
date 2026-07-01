@@ -1,61 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Play, Pause, Heart, Clock, Loader2, Music } from 'lucide-react';
-import { SoundCloudPlaylist, SoundCloudTrack, getPlaylistDetails, getSafeArtworkUrl } from '../services/soundcloud';
+import { SoundCloudTrack, searchTracks, getSafeArtworkUrl } from '../services/soundcloud';
 import { usePlayer } from '../PlayerContext';
 import { motion } from 'motion/react';
 
-interface PlaylistDetailProps {
-  playlist: SoundCloudPlaylist;
+interface ArtistDetailProps {
+  artist: {
+    id: number;
+    username: string;
+    avatar_url: string;
+  };
   onBack: () => void;
 }
 
-const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlaylist, onBack }) => {
+const ArtistDetail: React.FC<ArtistDetailProps> = ({ artist, onBack }) => {
   const { currentTrack, isPlaying, playTrack, setPlaylist, isLiked, toggleLike } = usePlayer();
-  const [playlist, setPlaylistData] = useState<SoundCloudPlaylist>(initialPlaylist);
+  const [tracks, setTracks] = useState<SoundCloudTrack[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchFullDetails = async () => {
-      // If we don't have tracks, or any of the tracks is just a skeleton stub (missing title)
-      const needsFetch = !initialPlaylist.tracks || 
-                         initialPlaylist.tracks.length === 0 || 
-                         initialPlaylist.tracks.some(t => !t || !t.title);
-      
-      if (needsFetch) {
-        setLoading(true);
-        setError(null);
-        try {
-          const detailed = await getPlaylistDetails(initialPlaylist.id);
-          if (detailed) {
-            setPlaylistData(detailed);
-            if (detailed.tracks && detailed.tracks.length > 0) {
-              setPlaylist(detailed.tracks);
-              playTrack(detailed.tracks[0]);
-            }
-          } else {
-            setError("Unable to load full playlist tracks.");
-          }
-        } catch (err) {
-          setError("Failed to fetch playlist tracks.");
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setPlaylistData(initialPlaylist);
-        if (initialPlaylist.tracks && initialPlaylist.tracks.length > 0) {
-          setPlaylist(initialPlaylist.tracks);
-          playTrack(initialPlaylist.tracks[0]);
-        }
+    const fetchArtistTracks = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Query the SoundCloud API using search with the artist's specific username
+        const results = await searchTracks(artist.username);
+        setTracks(results);
+      } catch (err) {
+        console.error("Error fetching artist tracks:", err);
+        setError("Не удалось загрузить треки исполнителя.");
+      } finally {
+        setLoading(false);
       }
     };
-    
-    fetchFullDetails();
-  }, [initialPlaylist]);
 
-  const tracks = playlist.tracks || [];
+    fetchArtistTracks();
+  }, [artist]);
 
-  const handlePlayPlaylist = () => {
+  const handlePlayArtistTracks = () => {
     if (tracks.length > 0) {
       setPlaylist(tracks);
       playTrack(tracks[0]);
@@ -67,7 +50,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
     playTrack(track);
   };
 
-  const isPlaylistPlaying = isPlaying && tracks.some(t => t.id === currentTrack?.id);
+  const isArtistPlaying = isPlaying && tracks.some(t => t.id === currentTrack?.id);
 
   const formatDuration = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -76,7 +59,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  const artworkUrl = getSafeArtworkUrl(playlist.artwork_url || playlist.user?.avatar_url, 't500x500');
+  const avatarUrl = getSafeArtworkUrl(artist.avatar_url, 't500x500');
 
   return (
     <motion.div
@@ -94,28 +77,28 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
         <ArrowLeft className="w-4 h-4" /> Назад
       </button>
 
-      {/* Playlist Header Block */}
+      {/* Artist Profile Header Block */}
       <div className="flex flex-col md:flex-row items-center md:items-end gap-6 lg:gap-8 pb-6 border-b border-white/[0.04]">
-        <div className="w-44 h-44 lg:w-48 lg:h-48 shrink-0 aspect-square overflow-hidden rounded-2xl border border-white/5 bg-zinc-950 shadow-xl">
+        <div className="w-40 h-40 lg:w-44 lg:h-44 shrink-0 aspect-square overflow-hidden rounded-full border-2 border-white/10 bg-zinc-950 shadow-2xl">
           <img 
-            src={artworkUrl} 
-            alt={playlist.title}
+            src={avatarUrl} 
+            alt={artist.username}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />
         </div>
         
         <div className="flex-1 text-center md:text-left space-y-3.5">
-          <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 border border-zinc-800/60 bg-zinc-900/40 px-2.5 py-1 rounded-md">
-            Плейлист
+          <span className="text-[10px] font-bold tracking-widest uppercase text-blue-400 border border-blue-900/40 bg-blue-950/20 px-2.5 py-1 rounded-md">
+            Исполнитель
           </span>
-          <h1 className="text-xl lg:text-3xl font-black tracking-tight text-white uppercase break-words leading-tight font-display">
-            {playlist.title}
+          <h1 className="text-xl lg:text-3xl font-black tracking-tight text-white uppercase break-words leading-none font-display">
+            {artist.username}
           </h1>
           <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-3 gap-y-1 text-xs text-zinc-500 tracking-wide font-medium">
-            <span>От <span className="text-zinc-300 hover:underline cursor-pointer">{playlist.user?.username || 'Unknown Author'}</span></span>
+            <span>Популярные релизы</span>
             <span className="text-zinc-800">•</span>
-            <span>{tracks.length} треков</span>
+            <span>{tracks.length} треков доступно</span>
           </div>
 
           <div className="pt-2 flex justify-center md:justify-start">
@@ -123,16 +106,16 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handlePlayPlaylist}
+                onClick={handlePlayArtistTracks}
                 className="flex items-center gap-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs uppercase tracking-widest py-3 px-6 rounded-xl transition-colors shadow-lg shadow-[#3b82f6]/10"
               >
-                {isPlaylistPlaying ? (
+                {isArtistPlaying ? (
                   <>
-                    <Pause className="w-4 h-4 fill-current text-white animate-pulse" /> ИГРАЕТ
+                    <Pause className="w-4 h-4 fill-current text-white animate-pulse" /> СЛУШАЕМ
                   </>
                 ) : (
                   <>
-                    <Play className="w-4 h-4 fill-current text-white ml-0.5" /> СЛУШАТЬ ВСЕ
+                    <Play className="w-4 h-4 fill-current text-white ml-0.5" /> СЛУШАТЬ ТРЕКИ
                   </>
                 )}
               </motion.button>
@@ -145,7 +128,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Loader2 className="w-6 h-6 animate-spin text-[#3b82f6]" />
-          <span className="text-xs text-zinc-500 tracking-wider font-semibold uppercase">Загрузка треков...</span>
+          <span className="text-xs text-zinc-500 tracking-wider font-semibold uppercase">Загрузка популярных треков...</span>
         </div>
       ) : error ? (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-xs tracking-wide font-medium">
@@ -153,7 +136,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
         </div>
       ) : tracks.length === 0 ? (
         <div className="text-center py-16 text-zinc-600 text-xs uppercase tracking-wider">
-          Этот плейлист пока пуст
+          У исполнителя пока нет доступных треков
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -162,7 +145,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
               <tr className="border-b border-white/[0.04] text-[10px] uppercase text-zinc-500 tracking-widest font-bold">
                 <th className="py-4 px-4 w-12 text-center md:table-cell hidden">#</th>
                 <th className="py-4 px-4">Название</th>
-                <th className="py-4 px-4 md:table-cell hidden">Автор</th>
+                <th className="py-4 px-4 md:table-cell hidden">Исполнитель</th>
                 <th className="py-4 px-4 text-right w-16">
                   <Clock className="w-4 h-4 ml-auto text-zinc-500" />
                 </th>
@@ -242,4 +225,4 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlist: initialPlayli
   );
 };
 
-export default PlaylistDetail;
+export default ArtistDetail;

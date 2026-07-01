@@ -3,26 +3,26 @@ import { Search as SearchIcon, X } from 'lucide-react';
 import { searchTracks, searchPlaylists, SoundCloudTrack, SoundCloudPlaylist } from '../services/soundcloud';
 
 interface SearchBarProps {
+  value: string;
+  onChange: (value: string) => void;
   onResults: (results: SoundCloudTrack[], playlists: SoundCloudPlaylist[], query: string) => void;
   onLoading: (loading: boolean) => void;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ onResults, onLoading }) => {
-  const [query, setQuery] = useState('');
-
+const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onResults, onLoading }) => {
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
-      if (query.trim()) {
+      if (value.trim()) {
         onLoading(true);
         try {
           const [tracks, playlists] = await Promise.all([
-            searchTracks(query),
-            searchPlaylists(query)
+            searchTracks(value),
+            searchPlaylists(value)
           ]);
-          onResults(tracks, playlists, query);
+          onResults(tracks, playlists, value);
         } catch (error) {
           console.error('Error during combined search:', error);
-          onResults([], [], query);
+          onResults([], [], value);
         } finally {
           onLoading(false);
         }
@@ -32,7 +32,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onResults, onLoading }) => {
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [query]);
+  }, [value]);
 
 
   return (
@@ -42,14 +42,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onResults, onLoading }) => {
       </div>
       <input
         type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         placeholder="Поиск треков, артистов, плейлистов..."
-        className="w-full glass-input rounded-full py-3.5 pl-12 pr-12 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/10"
+        className="w-full flat-input rounded-xl py-3 pl-11 pr-11 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-700"
       />
-      {query && (
+      {value && (
         <button
-          onClick={() => setQuery('')}
+          onClick={() => onChange('')}
           className="absolute inset-y-0 right-4 flex items-center text-white/40 hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />

@@ -407,13 +407,20 @@ export async function startServer() {
     
     // Curated high-fidelity, viral Russian and Western SoundCloud keywords & legends
     const trendingKeywords = [
+      "madkid",
       "серега пират",
-      "shadowraze",
-      "zxcursed",
-      "unki",
       "miyagi & эндшпиль",
-      "dabbackwood",
-      "macan"
+      "macan",
+      "shadowraze",
+      "friendly thug 52 ngg",
+      "pepel nahudi",
+      "pharaoh",
+      "lizer",
+      "lida",
+      "unki",
+      "scally milano",
+      "phonk gaming",
+      "популярный рэп"
     ];
     
     try {

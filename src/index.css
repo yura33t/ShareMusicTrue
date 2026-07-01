@@ -1,112 +1,47 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=VT323&family=Press+Start+2P&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
   body {
-    @apply bg-[#040406] text-white antialiased overflow-x-hidden;
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(31, 23, 58, 0.4) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(20, 28, 43, 0.4) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, rgba(30, 20, 35, 0.3) 0px, transparent 70%);
-    background-attachment: fixed;
+    @apply bg-[#08080a] text-zinc-100 antialiased overflow-x-hidden;
+    background-color: #08080a;
   }
 }
 
-/* Glassmorphism Classes */
-.glass-panel {
-  background: rgba(14, 14, 18, 0.45);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Custom Minimalist Styling Classes */
+.flat-panel {
+  background-color: #121215;
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.glass-header {
-  background: rgba(8, 8, 12, 0.4);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+.flat-card {
+  background-color: #16161c;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glass-card {
-  background: rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+.flat-card:hover {
+  background-color: #1c1c24;
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
 }
 
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6), 
-              0 1px 0 0 rgba(255, 255, 255, 0.1) inset;
-}
-
-.glass-card-active {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 20px 0 rgba(255, 255, 255, 0.05);
-}
-
-.glass-input {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.flat-input {
+  background-color: #16161c;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.2s ease;
 }
 
-.glass-input:focus {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 15px -3px rgba(255, 255, 255, 0.1);
-}
-
-.glass-btn {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.flat-input:focus {
+  background-color: #1c1c24;
   border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
-}
-
-.glass-btn-active {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-/* Fluid keyframe animations for background blob pulse */
-@keyframes fluid-blob-1 {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
-}
-
-@keyframes fluid-blob-2 {
-  0% { transform: translate(0px, 0px) scale(1); }
-  50% { transform: translate(-30px, 40px) scale(1.15); }
-  100% { transform: translate(0px, 0px) scale(1); }
-}
-
-.animate-blob-1 {
-  animation: fluid-blob-1 15s infinite alternate ease-in-out;
-}
-
-.animate-blob-2 {
-  animation: fluid-blob-2 18s infinite alternate ease-in-out;
+  outline: none;
 }
 
 /* Custom scrollbar for a cleaner look */
@@ -121,7 +56,7 @@
 /* Smooth Soundwave Equalizer Animations */
 @keyframes soundwave {
   0%, 100% {
-    transform: scaleY(0.15);
+    transform: scaleY(0.2);
   }
   50% {
     transform: scaleY(1);
@@ -129,7 +64,7 @@
 }
 
 .animate-soundwave {
-  animation: soundwave 1.2s infinite ease-in-out;
+  animation: soundwave 1s infinite ease-in-out;
   transform-origin: bottom;
 }
 
