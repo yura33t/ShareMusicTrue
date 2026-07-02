@@ -67,6 +67,22 @@ async function getValidClientId() {
 
 const BASE_URL = 'https://api-v2.soundcloud.com';
 
+const apiCache = new Map<string, { data: any, expiresAt: number }>();
+
+function getCache(key: string): any | null {
+  const item = apiCache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiresAt) {
+    apiCache.delete(key);
+    return null;
+  }
+  return item.data;
+}
+
+function setCache(key: string, data: any, ttlMs: number = 300000) {
+  apiCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
 export async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -333,6 +349,13 @@ export async function startServer() {
       const parsedLimit = parseInt(limit as string, 10) || 50;
       const parsedOffset = parseInt(offset as string, 10) || 0;
       const qStr = q as string;
+
+      const cacheKey = `search:${type}:${qStr}:${parsedLimit}:${parsedOffset}`;
+      const cached = getCache(cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
       const expandedQueries = getExpandedQueries(qStr);
       console.log(`Searching SoundCloud tracks for: "${qStr}" (Expanded: ${expandedQueries.join(', ')}), type: ${type}, offset: ${parsedOffset}`);
       
@@ -389,9 +412,12 @@ export async function startServer() {
         }
       }
 
-      res.json({
+      const resultPayload = {
         collection: mergedCollection.slice(0, parsedLimit)
-      });
+      };
+      setCache(cacheKey, resultPayload, 300000); // Cache for 5 minutes
+
+      res.json(resultPayload);
     } catch (error: any) {
       console.error("Proxy Search Error:", error.response?.status, error.response?.data || error.message);
       res.status(error.response?.status || 500).json({ error: error.response?.data || error.message });
@@ -500,6 +526,72 @@ export async function startServer() {
     }
   });
 
+  app.get("/api/soundcloud/stream-url", async (req, res) => {
+    try {
+      const { trackId, transcodingUrl } = req.query;
+      if (!trackId) {
+        return res.status(400).json({ error: "trackId is required" });
+      }
+
+      const cacheKey = `stream:${trackId}`;
+      const cached = getCache(cacheKey);
+      if (cached) {
+        return res.json({ url: cached });
+      }
+
+      let rawUrl: string | null = null;
+
+      if (transcodingUrl) {
+        try {
+          const resp = await fetchWithRetry(transcodingUrl as string, {}, {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': 'https://soundcloud.com/',
+            'Origin': 'https://soundcloud.com'
+          });
+          rawUrl = resp.data?.url;
+        } catch (e) {
+          // Fallback to track details
+        }
+      }
+
+      if (!rawUrl) {
+        try {
+          const trackResp = await fetchWithRetry(`${BASE_URL}/tracks/${trackId}`, {}, {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': 'https://soundcloud.com/',
+            'Origin': 'https://soundcloud.com'
+          });
+          const trackData = trackResp.data;
+          if (trackData && trackData.media && Array.isArray(trackData.media.transcodings)) {
+            const transcodings = trackData.media.transcodings;
+            const transcoding = transcodings.find((t: any) => t.format?.protocol === 'progressive') || transcodings[0];
+            if (transcoding && transcoding.url) {
+              const resp = await fetchWithRetry(transcoding.url, {}, {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Referer': 'https://soundcloud.com/',
+                'Origin': 'https://soundcloud.com'
+              });
+              rawUrl = resp.data?.url;
+            }
+          }
+        } catch (trackErr: any) {
+          console.error(`Failed to fetch track details for trackId ${trackId}:`, trackErr.message);
+        }
+      }
+
+      if (rawUrl) {
+        const proxiedUrl = `/api/stream-proxy?url=${encodeURIComponent(rawUrl)}`;
+        setCache(cacheKey, proxiedUrl, 3600 * 1000); // 1 hour TTL
+        return res.json({ url: proxiedUrl });
+      }
+
+      return res.status(404).json({ error: "Stream URL not found" });
+    } catch (error: any) {
+      console.error("Stream URL Resolution Error:", error.message);
+      return res.status(500).json({ error: "Internal server error resolving stream" });
+    }
+  });
+
   // Proxy endpoint to bypass Russian blockages on SoundCloud's image CDN (sndcdn.com)
   app.get("/api/artwork-proxy", async (req, res) => {
     try {
@@ -573,8 +665,7 @@ export async function startServer() {
       response.data.pipe(res);
     } catch (error: any) {
       console.error("Audio stream proxy error:", error.message);
-      // Fallback music stream if it fails
-      res.redirect("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
+      res.status(502).json({ error: "Audio stream unavailable" });
     }
   });
 

@@ -57,16 +57,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const currentTrackRef = useRef(currentTrack);
   const playlistRef = useRef(playlist);
   const currentLoadingTrackIdRef = useRef<number | null>(null);
-  const playTrackRef = useRef<((track: SoundCloudTrack) => void) | null>(null);
+  const playNextRef = useRef<() => void>(() => {});
+  const playPreviousRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
     playlistRef.current = playlist;
   }, [currentTrack, playlist]);
-
-  useEffect(() => {
-    playTrackRef.current = playTrack;
-  });
   
   useEffect(() => {
     localStorage.setItem('likedTracks', JSON.stringify(likedTracks));
@@ -93,7 +90,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const updateProgress = () => {
       setProgress(audio.currentTime);
-      // Only overwrite duration if it's a valid positive number
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
@@ -102,17 +98,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const onEnded = () => {
       setIsPlaying(false);
       setProgress(0);
-      
-      const current = currentTrackRef.current;
-      const list = playlistRef.current;
-      if (current && list) {
-        const currentIndex = list.findIndex(t => t.id === current.id);
-        if (currentIndex !== -1 && currentIndex < list.length - 1) {
-            if (playTrackRef.current) {
-              playTrackRef.current(list[currentIndex + 1]);
-            }
-        }
+      if (playNextRef.current) {
+        playNextRef.current();
       }
+    };
+
+    const onError = (e: Event) => {
+      console.warn("Audio element error during playback, auto-skipping:", e);
+      setIsPlaying(false);
+      setIsLoading(false);
+      setTimeout(() => {
+        if (playNextRef.current) {
+          playNextRef.current();
+        }
+      }, 1000);
     };
 
     const onPlay = () => {
@@ -125,6 +124,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     audio.addEventListener('timeupdate', updateProgress);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
     audio.addEventListener('loadedmetadata', updateProgress);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
@@ -132,6 +132,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       audio.removeEventListener('timeupdate', updateProgress);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
       audio.removeEventListener('loadedmetadata', updateProgress);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
@@ -148,108 +149,154 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [volume]);
 
+  const playNext = () => {
+    const current = currentTrackRef.current;
+    const list = playlistRef.current;
+    if (list && list.length > 0) {
+      if (!current) {
+        playTrack(list[0]);
+        return;
+      }
+      const currentIndex = list.findIndex(t => t.id === current.id);
+      const nextIndex = currentIndex !== -1 ? (currentIndex + 1) % list.length : 0;
+      playTrack(list[nextIndex]);
+    }
+  };
+
+  const playPrevious = () => {
+    const current = currentTrackRef.current;
+    const list = playlistRef.current;
+    if (list && list.length > 0) {
+      if (!current) {
+        playTrack(list[0]);
+        return;
+      }
+      const currentIndex = list.findIndex(t => t.id === current.id);
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : list.length - 1;
+      playTrack(list[prevIndex]);
+    }
+  };
+
+  useEffect(() => {
+    playNextRef.current = playNext;
+    playPreviousRef.current = playPrevious;
+  });
+
   const playTrack = async (track: SoundCloudTrack, newPlaylist?: SoundCloudTrack[]) => {
     if (!audioRef.current) return;
 
     if (newPlaylist && newPlaylist.length > 0) {
       setPlaylist(newPlaylist);
+      playlistRef.current = newPlaylist;
     }
 
-    // Synchronously "unlock" the audio element within the user's click gesture
-    // so subsequent async stream loading can auto-start playing without browser block.
-    try {
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {});
-      }
-      audioRef.current.pause();
-    } catch (e) {}
-
-    if (currentTrack?.id === track.id) {
+    if (currentTrackRef.current?.id === track.id && audioRef.current.src) {
       togglePlay();
       return;
     }
 
-    // Set active loading track id
     currentLoadingTrackIdRef.current = track.id;
     setIsLoading(true);
-    setIsPlaying(false); // Reset playing indicator during load to avoid glitching
+    setIsPlaying(false);
     setProgress(0);
-    
-    // Instantly use metadata duration to prevent layout/text flickering in UI
+    setCurrentTrack(track);
+
     if (track.duration) {
       setDuration(track.duration / 1000);
     } else {
       setDuration(0);
     }
 
-    // Pause current audio before fetching
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
     audioRef.current.pause();
 
     try {
       const streamUrl = await getStreamUrl(track);
       
-      // If user has switched to another track during the async fetch, abort!
       if (currentLoadingTrackIdRef.current !== track.id) {
         return;
       }
 
       if (!streamUrl) {
-        console.error('Could not get stream URL');
+        console.warn('Could not get stream URL, auto-skipping');
         setIsLoading(false);
+        setTimeout(() => playNextRef.current(), 1000);
         return;
       }
 
-      setCurrentTrack(track);
-
-      if (streamUrl.includes('.m3u8')) {
-        if (Hls.isSupported()) {
-          if (hlsRef.current) hlsRef.current.destroy();
-          const hls = new Hls();
-          hls.loadSource(streamUrl);
-          hls.attachMedia(audioRef.current);
-          hlsRef.current = hls;
-          hls.on(Hls.Events.MANIFEST_PARSED, async () => {
-            if (currentLoadingTrackIdRef.current !== track.id) return;
-            try {
-              await audioRef.current?.play();
-              setIsPlaying(true);
-            } catch (err) {
-              console.warn('Play interrupted', err);
-              setIsPlaying(false);
-            } finally {
-              setIsLoading(false);
-            }
-          });
-        } else if (audioRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-          audioRef.current.src = streamUrl;
-          try {
-            await audioRef.current.play();
-            setIsPlaying(true);
-          } catch (err) {
-            console.warn('Play interrupted', err);
-            setIsPlaying(false);
-          } finally {
-            setIsLoading(false);
-          }
-        }
-      } else {
-        if (hlsRef.current) hlsRef.current.destroy();
-        audioRef.current.src = streamUrl;
+      const startPlayback = async () => {
+        if (!audioRef.current || currentLoadingTrackIdRef.current !== track.id) return;
         try {
           await audioRef.current.play();
           setIsPlaying(true);
+          // Prefetch stream URL for next track in playlist for instant playback transition
+          if (playlistRef.current && playlistRef.current.length > 0) {
+            const curIdx = playlistRef.current.findIndex(t => t.id === track.id);
+            if (curIdx !== -1 && curIdx < playlistRef.current.length - 1) {
+              const nextTrk = playlistRef.current[curIdx + 1];
+              getStreamUrl(nextTrk).catch(() => {});
+            }
+          }
         } catch (err) {
-          console.warn('Play interrupted', err);
+          console.warn('Play interrupted or blocked:', err);
           setIsPlaying(false);
         } finally {
           setIsLoading(false);
         }
+      };
+
+      if (streamUrl.includes('.m3u8')) {
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+          });
+          hlsRef.current = hls;
+          hls.loadSource(streamUrl);
+          hls.attachMedia(audioRef.current);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (currentLoadingTrackIdRef.current !== track.id) return;
+            startPlayback();
+          });
+
+          hls.on(Hls.Events.ERROR, (_evt, data) => {
+            if (data.fatal) {
+              console.warn('HLS Fatal error:', data.type);
+              if (currentLoadingTrackIdRef.current === track.id) {
+                setIsLoading(false);
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                  hls.startLoad();
+                } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                  hls.recoverMediaError();
+                } else {
+                  hls.destroy();
+                  setTimeout(() => {
+                    if (playNextRef.current) playNextRef.current();
+                  }, 500);
+                }
+              }
+            }
+          });
+        } else if (audioRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+          audioRef.current.src = streamUrl;
+          startPlayback();
+        } else {
+          audioRef.current.src = streamUrl;
+          startPlayback();
+        }
+      } else {
+        audioRef.current.src = streamUrl;
+        startPlayback();
       }
     } catch (error) {
       console.error('Error in playTrack:', error);
       if (currentLoadingTrackIdRef.current === track.id) {
         setIsLoading(false);
+        setTimeout(() => playNextRef.current(), 1000);
       }
     }
   };
@@ -276,36 +323,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setProgress(p);
     }
   };
-
-  const playNext = () => {
-    const current = currentTrackRef.current;
-    const list = playlistRef.current;
-    if (current && list) {
-      const currentIndex = list.findIndex(t => t.id === current.id);
-      if (currentIndex !== -1 && currentIndex < list.length - 1) {
-        playTrack(list[currentIndex + 1]);
-      }
-    }
-  };
-
-  const playPrevious = () => {
-    const current = currentTrackRef.current;
-    const list = playlistRef.current;
-    if (current && list) {
-      const currentIndex = list.findIndex(t => t.id === current.id);
-      if (currentIndex > 0) {
-        playTrack(list[currentIndex - 1]);
-      }
-    }
-  };
-
-  const playNextRef = useRef(playNext);
-  const playPreviousRef = useRef(playPrevious);
-
-  useEffect(() => {
-    playNextRef.current = playNext;
-    playPreviousRef.current = playPrevious;
-  }, [playNext, playPrevious]);
 
   useEffect(() => {
     if ('mediaSession' in navigator && currentTrack) {
@@ -408,11 +425,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       let blob = await response.blob();
 
-      // If HLS/m3u8, download the high-fidelity progressive MP3 fallback
       if (blob.type.includes('mpegurl') || blob.type.includes('x-mpegURL') || streamUrl.includes('.m3u8')) {
-        const fallbackUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-        const fallbackResponse = await fetch(fallbackUrl);
-        blob = await fallbackResponse.blob();
+        throw new Error("Скачивание недоступно для треков в формате HLS. Попробуйте другой трек.");
       }
 
       const url = window.URL.createObjectURL(blob);

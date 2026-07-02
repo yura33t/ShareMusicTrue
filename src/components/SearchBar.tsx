@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { searchTracks, searchPlaylists, SoundCloudTrack, SoundCloudPlaylist } from '../services/soundcloud';
 
@@ -10,30 +10,64 @@ interface SearchBarProps {
 }
 
 const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onResults, onLoading }) => {
+  const [localValue, setLocalValue] = useState(value);
+  const latestQueryRef = useRef(value);
+
   useEffect(() => {
+    setLocalValue(value);
+    latestQueryRef.current = value;
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setLocalValue(newVal);
+    latestQueryRef.current = newVal;
+    onChange(newVal);
+  };
+
+  const handleClear = () => {
+    setLocalValue('');
+    latestQueryRef.current = '';
+    onChange('');
+    onResults([], [], '');
+  };
+
+  useEffect(() => {
+    const queryToSearch = localValue.trim();
+
+    if (!queryToSearch) {
+      onResults([], [], '');
+      onLoading(false);
+      return;
+    }
+
     const delayDebounceFn = setTimeout(async () => {
-      if (value.trim()) {
-        onLoading(true);
-        try {
-          const [tracks, playlists] = await Promise.all([
-            searchTracks(value),
-            searchPlaylists(value)
-          ]);
-          onResults(tracks, playlists, value);
-        } catch (error) {
-          console.error('Error during combined search:', error);
-          onResults([], [], value);
-        } finally {
+      if (latestQueryRef.current.trim() !== queryToSearch) return;
+
+      onLoading(true);
+      try {
+        const [tracks, playlists] = await Promise.all([
+          searchTracks(queryToSearch),
+          searchPlaylists(queryToSearch)
+        ]);
+
+        if (latestQueryRef.current.trim() === queryToSearch) {
+          onResults(tracks, playlists, queryToSearch);
+        }
+      } catch (error) {
+        console.error('Error during combined search:', error);
+        if (latestQueryRef.current.trim() === queryToSearch) {
+          onResults([], [], queryToSearch);
+        }
+      } finally {
+        if (latestQueryRef.current.trim() === queryToSearch) {
           onLoading(false);
         }
-      } else {
-        onResults([], [], '');
       }
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [value]);
-
+  }, [localValue]);
 
   return (
     <div className="relative w-full max-w-2xl group">
@@ -42,14 +76,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ value, onChange, onResults, onLoa
       </div>
       <input
         type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={localValue}
+        onChange={handleInputChange}
         placeholder="Поиск треков, артистов, плейлистов..."
-        className="w-full flat-input rounded-xl py-3 pl-11 pr-11 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+        className="w-full flat-input rounded-xl py-3 pl-11 pr-11 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-700 font-sans"
       />
-      {value && (
+      {localValue && (
         <button
-          onClick={() => onChange('')}
+          onClick={handleClear}
           className="absolute inset-y-0 right-4 flex items-center text-white/40 hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />

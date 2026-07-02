@@ -113,7 +113,6 @@ const AppContent: React.FC = () => {
         setSearchOffset(0);
         setSelectedPlaylist(null); // Clear active playlist detail on new search
     }
-    setCurrentQuery(query);
     setIsSearching(results.length > 0 || playlists.length > 0 || isAppend);
     if (query.trim()) {
       setView('search');

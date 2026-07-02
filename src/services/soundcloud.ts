@@ -163,34 +163,40 @@ const getDummyTracks = (): SoundCloudTrack[] => [
   }
 ];
 
+const streamCache = new Map<number, string>();
+
 export const getStreamUrl = async (track: SoundCloudTrack): Promise<string | null> => {
+  if (!track || !track.id) return null;
+
+  if (streamCache.has(track.id)) {
+    return streamCache.get(track.id)!;
+  }
+
   try {
-    if (!track.media || !track.media.transcodings) {
-      // Return a demo track for dummy tracks
-      return "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    let transcodingUrl: string | undefined;
+    if (track.media?.transcodings?.length) {
+      const transcoding = track.media.transcodings.find(
+        (t) => t.format?.protocol === 'progressive'
+      ) || track.media.transcodings[0];
+      transcodingUrl = transcoding?.url;
     }
 
-    // Prefer progressive mp3 if available, otherwise HLS
-    const transcoding = track.media.transcodings.find(
-      (t) => t.format.protocol === 'progressive'
-    ) || track.media.transcodings[0];
-
-    if (!transcoding) return null;
-
-    const response = await axios.get(`/api/soundcloud/resolve`, {
+    const response = await axios.get('/api/soundcloud/stream-url', {
       params: {
-        url: transcoding.url,
+        trackId: track.id,
+        transcodingUrl,
       },
+      timeout: 10000,
     });
 
-    const rawUrl = response.data.url;
-    if (!rawUrl) return null;
-
-    // Proxy the audio stream stream to bypass Russian ISP blockages on SoundCloud's media CDNs
-    return `/api/stream-proxy?url=${encodeURIComponent(rawUrl)}`;
+    const streamUrl = response.data?.url;
+    if (streamUrl) {
+      streamCache.set(track.id, streamUrl);
+      return streamUrl;
+    }
+    return null;
   } catch (error) {
-    console.error('Error getting stream URL:', error);
-    // Fallback to a royalty-free demo track if resolve fails
-    return "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    console.error(`Error getting stream URL for track ${track.id}:`, error);
+    return null;
   }
 };
