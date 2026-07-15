@@ -6,11 +6,11 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const FALLBACK_CLIENT_IDS = [
+  'pKk38t8ErXEMPwcTI3sjY3kmQ3nyfbRl', // Fresh verified working key (July 2026)
   'OelGkhXfXWOqCdtdJyDkt5rBWc2GF4xR',
   'iZIs9m2g34Y0NlXMo76m2n6m6D8o6t0a',
   'YUK76bZfWbM7L6YVfXhLpD7gZ8GjS2z3',
-  'b45b1aa10f1ac2941910a7f0d10f8e28',
-  '2t9mdv7g9H6o8Sj6n6O8g6O8O8O8O8O8'
+  'b45b1aa10f1ac2941910a7f0d10f8e28'
 ];
 let fallbackIndex = 0;
 let dynamicClientId: string | null = null;
@@ -23,7 +23,8 @@ async function getValidClientId() {
     const { data } = await axios.get('https://soundcloud.com/', {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        }
+        },
+        timeout: 4000 // 4 seconds limit to prevent hanging the server
     });
     // Parse using a broader regex matching single/double quotes and optional spacing
     const urls = [...data.matchAll(/<script[^>]*src=["']([^"']+)["']/g)]
@@ -43,9 +44,10 @@ async function getValidClientId() {
         const { data: scriptData } = await axios.get(scriptUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            }
+            },
+            timeout: 3000 // 3 seconds limit per script
         });
-        const match = scriptData.match(/client_id:"([a-zA-Z0-9]{32})"/);
+        const match = scriptData.match(/client_id[:=]\s*["']([a-zA-Z0-9]{32})["']/);
         if (match) {
           dynamicClientId = match[1];
           console.log("Successfully scraped Client ID:", dynamicClientId.substring(0, 5) + "...");
@@ -93,10 +95,17 @@ export async function startServer() {
     let clientId = await getValidClientId();
     
     try {
-      return await axios.get(url, { params: { ...params, client_id: clientId }, headers });
+      return await axios.get(url, { 
+        params: { ...params, client_id: clientId }, 
+        headers,
+        timeout: 6000 // 6 seconds timeout limit per request
+      });
     } catch (error: any) {
-      if ((error.response?.status === 401 || error.response?.status === 403) && retries > 0) {
-        console.log(`Client ID failed (${error.response.status}), rotating fallback ID...`);
+      const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+      const isAuthError = error.response?.status === 401 || error.response?.status === 403;
+
+      if ((isAuthError || isTimeout) && retries > 0) {
+        console.log(`SoundCloud request failed (status: ${error.response?.status}, timeout: ${isTimeout}), rotating fallback ID...`);
         dynamicClientId = null; // Force refresh scraping on next call
         
         // Rotate our fallback index
