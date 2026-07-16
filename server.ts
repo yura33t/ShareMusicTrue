@@ -590,7 +590,7 @@ export async function startServer() {
 
       if (rawUrl) {
         const proxiedUrl = `/api/stream-proxy?url=${encodeURIComponent(rawUrl)}`;
-        setCache(cacheKey, proxiedUrl, 3600 * 1000); // 1 hour TTL
+        setCache(cacheKey, proxiedUrl, 8 * 60 * 1000); // 8 minutes TTL (shorter than frontend's 10 minutes to ensure fresh rotation)
         return res.json({ url: proxiedUrl });
       }
 

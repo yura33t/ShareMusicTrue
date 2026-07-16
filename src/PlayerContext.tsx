@@ -336,6 +336,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } catch (err) {
           console.warn('Play interrupted or blocked:', err);
           setIsPlaying(false);
+          isTransitioningRef.current = false;
         } finally {
           setIsLoading(false);
         }
@@ -417,6 +418,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!streamUrl) {
           console.warn('Could not get stream URL, auto-skipping');
           setIsLoading(false);
+          isTransitioningRef.current = false;
           setTimeout(() => playNextRef.current(), 1000);
           return;
         }
@@ -426,6 +428,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.error('Error in playTrack async path:', error);
         if (currentLoadingTrackIdRef.current === track.id) {
           setIsLoading(false);
+          isTransitioningRef.current = false;
           setTimeout(() => playNextRef.current(), 1000);
         }
       }
