@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { SoundCloudTrack, getStreamUrl } from './services/soundcloud';
+import { SoundCloudTrack, getStreamUrl, getCachedStreamUrl, getSafeArtworkUrl } from './services/soundcloud';
 import Hls from 'hls.js';
 
 interface PlayerContextType {
@@ -89,9 +89,27 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     audioRef.current = audio;
 
     const updateProgress = () => {
-      setProgress(audio.currentTime);
-      if (audio.duration && isFinite(audio.duration)) {
-        setDuration(audio.duration);
+      const currentTime = audio.currentTime;
+      setProgress(currentTime);
+      let dur = audio.duration;
+      if (dur && isFinite(dur)) {
+        setDuration(dur);
+      } else {
+        dur = 0;
+      }
+
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+        try {
+          if (dur > 0 && isFinite(currentTime) && isFinite(dur) && currentTime <= dur) {
+            navigator.mediaSession.setPositionState({
+              duration: dur,
+              playbackRate: audio.playbackRate || 1.0,
+              position: currentTime
+            });
+          }
+        } catch (e) {
+          console.warn("Error setting mediaSession position state:", e);
+        }
       }
     };
 
@@ -213,19 +231,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     audioRef.current.pause();
 
-    try {
-      const streamUrl = await getStreamUrl(track);
-      
-      if (currentLoadingTrackIdRef.current !== track.id) {
-        return;
-      }
-
-      if (!streamUrl) {
-        console.warn('Could not get stream URL, auto-skipping');
-        setIsLoading(false);
-        setTimeout(() => playNextRef.current(), 1000);
-        return;
-      }
+    const setupAudioSourceAndPlay = (streamUrl: string) => {
+      if (!audioRef.current || currentLoadingTrackIdRef.current !== track.id) return;
 
       const startPlayback = async () => {
         if (!audioRef.current || currentLoadingTrackIdRef.current !== track.id) return;
@@ -292,11 +299,31 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         audioRef.current.src = streamUrl;
         startPlayback();
       }
-    } catch (error) {
-      console.error('Error in playTrack:', error);
-      if (currentLoadingTrackIdRef.current === track.id) {
-        setIsLoading(false);
-        setTimeout(() => playNextRef.current(), 1000);
+    };
+
+    const cachedUrl = getCachedStreamUrl(track.id);
+    if (cachedUrl) {
+      console.log(`[FAST PLAYBACK] Found cached stream for track ${track.id}, starting synchronously!`);
+      setupAudioSourceAndPlay(cachedUrl);
+    } else {
+      try {
+        const streamUrl = await getStreamUrl(track);
+        if (currentLoadingTrackIdRef.current !== track.id) return;
+
+        if (!streamUrl) {
+          console.warn('Could not get stream URL, auto-skipping');
+          setIsLoading(false);
+          setTimeout(() => playNextRef.current(), 1000);
+          return;
+        }
+
+        setupAudioSourceAndPlay(streamUrl);
+      } catch (error) {
+        console.error('Error in playTrack async path:', error);
+        if (currentLoadingTrackIdRef.current === track.id) {
+          setIsLoading(false);
+          setTimeout(() => playNextRef.current(), 1000);
+        }
       }
     }
   };
@@ -326,8 +353,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if ('mediaSession' in navigator && currentTrack) {
-      const artwork = currentTrack.artwork_url || currentTrack.user?.avatar_url || '';
-      const safeArtwork = artwork ? artwork.replace('-large.', '-t500x500.') : '';
+      const safeArtwork = getSafeArtworkUrl(currentTrack.artwork_url || currentTrack.user?.avatar_url, 't500x500');
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: currentTrack.title,
@@ -377,6 +403,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             audioRef.current.currentTime = Math.min(audioRef.current.currentTime + offset, audioRef.current.duration || 0);
           }
         });
+        try {
+          navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (audioRef.current && details.seekTime !== undefined) {
+              audioRef.current.currentTime = details.seekTime;
+              setProgress(details.seekTime);
+            }
+          });
+        } catch (err) {
+          console.warn("Media Session seekto registration not supported on this platform", err);
+        }
       } catch (error) {
         console.warn("Media Session Action Handler registration error", error);
       }
@@ -390,6 +426,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           navigator.mediaSession.setActionHandler('nexttrack', null);
           navigator.mediaSession.setActionHandler('seekbackward', null);
           navigator.mediaSession.setActionHandler('seekforward', null);
+          try {
+            navigator.mediaSession.setActionHandler('seekto', null);
+          } catch (e) {}
         } catch (e) {}
       }
     };

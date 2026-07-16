@@ -165,6 +165,10 @@ const getDummyTracks = (): SoundCloudTrack[] => [
 
 const streamCache = new Map<number, string>();
 
+export const getCachedStreamUrl = (trackId: number): string | null => {
+  return streamCache.get(trackId) || null;
+};
+
 export const getStreamUrl = async (track: SoundCloudTrack): Promise<string | null> => {
   if (!track || !track.id) return null;
 
