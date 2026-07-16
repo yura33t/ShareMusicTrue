@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { SoundCloudTrack, getStreamUrl, getCachedStreamUrl, getSafeArtworkUrl } from './services/soundcloud';
+import { SoundCloudTrack, getStreamUrl, getCachedStreamUrl, getSafeArtworkUrl, invalidateCachedStream } from './services/soundcloud';
 import Hls from 'hls.js';
+
+const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
 interface PlayerContextType {
   currentTrack: SoundCloudTrack | null;
@@ -57,8 +59,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const currentTrackRef = useRef(currentTrack);
   const playlistRef = useRef(playlist);
   const currentLoadingTrackIdRef = useRef<number | null>(null);
+  const lastFailedTrackIdRef = useRef<number | null>(null);
+  const isTransitioningRef = useRef(false);
   const playNextRef = useRef<() => void>(() => {});
   const playPreviousRef = useRef<() => void>(() => {});
+  const playTrackRef = useRef<(track: SoundCloudTrack, newPlaylist?: SoundCloudTrack[], forceFresh?: boolean) => void>(() => {});
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -89,6 +94,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     audioRef.current = audio;
 
     const updateProgress = () => {
+      if (audio.src && audio.src.startsWith('data:audio')) {
+        return;
+      }
       const currentTime = audio.currentTime;
       setProgress(currentTime);
       let dur = audio.duration;
@@ -114,6 +122,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const onEnded = () => {
+      if (isTransitioningRef.current) {
+        return;
+      }
+      if (audio.src && audio.src.startsWith('data:audio')) {
+        return;
+      }
       setIsPlaying(false);
       setProgress(0);
       if (playNextRef.current) {
@@ -122,22 +136,67 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const onError = (e: Event) => {
-      console.warn("Audio element error during playback, auto-skipping:", e);
-      setIsPlaying(false);
-      setIsLoading(false);
-      setTimeout(() => {
-        if (playNextRef.current) {
-          playNextRef.current();
+      if (audio.src && audio.src.startsWith('data:audio')) {
+        return;
+      }
+      const current = currentTrackRef.current;
+      console.warn("Audio element error during playback:", e);
+      
+      if (current) {
+        if (lastFailedTrackIdRef.current === current.id) {
+          console.warn(`Track ${current.id} failed again after retry, auto-skipping to next`);
+          setIsPlaying(false);
+          setIsLoading(false);
+          lastFailedTrackIdRef.current = null;
+          setTimeout(() => {
+            if (playNextRef.current) {
+              playNextRef.current();
+            }
+          }, 1000);
+        } else {
+          console.log(`Attempting to recover track ${current.id} with a fresh stream URL...`);
+          lastFailedTrackIdRef.current = current.id;
+          invalidateCachedStream(current.id);
+          setTimeout(() => {
+            if (playTrackRef.current && currentTrackRef.current?.id === current.id) {
+              playTrackRef.current(current, undefined, true);
+            }
+          }, 500);
         }
-      }, 1000);
+      } else {
+        setIsPlaying(false);
+        setIsLoading(false);
+        setTimeout(() => {
+          if (playNextRef.current) {
+            playNextRef.current();
+          }
+        }, 1000);
+      }
     };
 
     const onPlay = () => {
+      if (audio.src && audio.src.startsWith('data:audio')) {
+        return;
+      }
+      isTransitioningRef.current = false;
       setIsPlaying(true);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+      }
     };
 
     const onPause = () => {
+      if (isTransitioningRef.current) {
+        console.log("onPause event ignored during active transition/loading state");
+        return;
+      }
+      if (audio.src && audio.src.startsWith('data:audio')) {
+        return;
+      }
       setIsPlaying(false);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'paused';
+      }
     };
 
     audio.addEventListener('timeupdate', updateProgress);
@@ -198,19 +257,47 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     playNextRef.current = playNext;
     playPreviousRef.current = playPrevious;
+    playTrackRef.current = playTrack;
   });
 
-  const playTrack = async (track: SoundCloudTrack, newPlaylist?: SoundCloudTrack[]) => {
+  const prefetchAdjacentTracks = (t: SoundCloudTrack) => {
+    const list = playlistRef.current;
+    if (!list || list.length === 0) return;
+    const curIdx = list.findIndex(item => item.id === t.id);
+    if (curIdx === -1) return;
+
+    // Prefetch next track
+    const nextIdx = (curIdx + 1) % list.length;
+    const nextTrk = list[nextIdx];
+    if (nextTrk) {
+      getStreamUrl(nextTrk).catch(() => {});
+    }
+
+    // Prefetch previous track
+    const prevIdx = curIdx > 0 ? curIdx - 1 : list.length - 1;
+    const prevTrk = list[prevIdx];
+    if (prevTrk && prevTrk.id !== nextTrk?.id) {
+      getStreamUrl(prevTrk).catch(() => {});
+    }
+  };
+
+  const playTrack = async (track: SoundCloudTrack, newPlaylist?: SoundCloudTrack[], forceFresh = false) => {
     if (!audioRef.current) return;
+
+    isTransitioningRef.current = true;
 
     if (newPlaylist && newPlaylist.length > 0) {
       setPlaylist(newPlaylist);
       playlistRef.current = newPlaylist;
     }
 
-    if (currentTrackRef.current?.id === track.id && audioRef.current.src) {
+    if (currentTrackRef.current?.id === track.id && audioRef.current.src && !forceFresh) {
       togglePlay();
       return;
+    }
+
+    if (!forceFresh) {
+      lastFailedTrackIdRef.current = null;
     }
 
     currentLoadingTrackIdRef.current = track.id;
@@ -218,6 +305,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPlaying(false);
     setProgress(0);
     setCurrentTrack(track);
+    prefetchAdjacentTracks(track);
 
     if (track.duration) {
       setDuration(track.duration / 1000);
@@ -230,23 +318,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       hlsRef.current = null;
     }
     audioRef.current.pause();
+    try {
+      audioRef.current.currentTime = 0;
+    } catch (e) {
+      console.warn("Could not reset audio currentTime:", e);
+    }
 
     const setupAudioSourceAndPlay = (streamUrl: string) => {
       if (!audioRef.current || currentLoadingTrackIdRef.current !== track.id) return;
+      audioRef.current.loop = false;
 
       const startPlayback = async () => {
         if (!audioRef.current || currentLoadingTrackIdRef.current !== track.id) return;
         try {
           await audioRef.current.play();
           setIsPlaying(true);
-          // Prefetch stream URL for next track in playlist for instant playback transition
-          if (playlistRef.current && playlistRef.current.length > 0) {
-            const curIdx = playlistRef.current.findIndex(t => t.id === track.id);
-            if (curIdx !== -1 && curIdx < playlistRef.current.length - 1) {
-              const nextTrk = playlistRef.current[curIdx + 1];
-              getStreamUrl(nextTrk).catch(() => {});
-            }
-          }
         } catch (err) {
           console.warn('Play interrupted or blocked:', err);
           setIsPlaying(false);
@@ -264,6 +350,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           hlsRef.current = hls;
           hls.loadSource(streamUrl);
           hls.attachMedia(audioRef.current);
+
+          // Synchronously call play on audio element to keep the gesture alive
+          audioRef.current.play().then(() => {
+            if (currentLoadingTrackIdRef.current === track.id) {
+              setIsPlaying(true);
+              setIsLoading(false);
+            }
+          }).catch(() => {
+            // Ignore temporary play promise blocks, Hls.js will handle manifest parsed playback
+          });
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             if (currentLoadingTrackIdRef.current !== track.id) return;
@@ -301,13 +397,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
-    const cachedUrl = getCachedStreamUrl(track.id);
+    const cachedUrl = forceFresh ? null : getCachedStreamUrl(track.id);
     if (cachedUrl) {
       console.log(`[FAST PLAYBACK] Found cached stream for track ${track.id}, starting synchronously!`);
       setupAudioSourceAndPlay(cachedUrl);
     } else {
+      // Synchronously play silent buffer to grab user gesture permission before async fetch
+      console.log(`[SLOW PLAYBACK] Fetching fresh stream for track ${track.id}, priming with silent buffer...`);
+      audioRef.current.loop = true;
+      audioRef.current.src = SILENT_AUDIO;
+      audioRef.current.play().catch((e) => {
+        console.log("Synchronous silent play prepared/ignored", e);
+      });
+
       try {
-        const streamUrl = await getStreamUrl(track);
+        const streamUrl = await getStreamUrl(track, forceFresh);
         if (currentLoadingTrackIdRef.current !== track.id) return;
 
         if (!streamUrl) {
@@ -368,9 +472,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if ('mediaSession' in navigator && currentTrack) {
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      const isActuallyPlaying = isPlaying || isLoading || isTransitioningRef.current;
+      navigator.mediaSession.playbackState = isActuallyPlaying ? 'playing' : 'paused';
     }
-  }, [isPlaying, currentTrack]);
+  }, [isPlaying, isLoading, currentTrack]);
 
   useEffect(() => {
     if ('mediaSession' in navigator) {

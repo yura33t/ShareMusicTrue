@@ -163,17 +163,36 @@ const getDummyTracks = (): SoundCloudTrack[] => [
   }
 ];
 
-const streamCache = new Map<number, string>();
+interface CachedStream {
+  url: string;
+  timestamp: number;
+}
+
+const streamCache = new Map<number, CachedStream>();
 
 export const getCachedStreamUrl = (trackId: number): string | null => {
-  return streamCache.get(trackId) || null;
+  const cached = streamCache.get(trackId);
+  if (!cached) return null;
+  // If the cached stream URL is older than 10 minutes, expire it
+  if (Date.now() - cached.timestamp > 10 * 60 * 1000) {
+    streamCache.delete(trackId);
+    return null;
+  }
+  return cached.url;
 };
 
-export const getStreamUrl = async (track: SoundCloudTrack): Promise<string | null> => {
+export const invalidateCachedStream = (trackId: number): void => {
+  streamCache.delete(trackId);
+};
+
+export const getStreamUrl = async (track: SoundCloudTrack, forceFresh = false): Promise<string | null> => {
   if (!track || !track.id) return null;
 
-  if (streamCache.has(track.id)) {
-    return streamCache.get(track.id)!;
+  if (!forceFresh) {
+    const cachedUrl = getCachedStreamUrl(track.id);
+    if (cachedUrl) return cachedUrl;
+  } else {
+    streamCache.delete(track.id);
   }
 
   try {
@@ -195,7 +214,7 @@ export const getStreamUrl = async (track: SoundCloudTrack): Promise<string | nul
 
     const streamUrl = response.data?.url;
     if (streamUrl) {
-      streamCache.set(track.id, streamUrl);
+      streamCache.set(track.id, { url: streamUrl, timestamp: Date.now() });
       return streamUrl;
     }
     return null;
