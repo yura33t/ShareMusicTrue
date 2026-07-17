@@ -208,6 +208,7 @@ export const getStreamUrl = async (track: SoundCloudTrack, forceFresh = false): 
       params: {
         trackId: track.id,
         transcodingUrl,
+        forceFresh: forceFresh ? 'true' : 'false',
       },
       timeout: 10000,
     });

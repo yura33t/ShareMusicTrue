@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Search, Heart, PlusSquare, X, LogOut, Info, Settings } from 'lucide-react';
+import { Home, Search, Heart, PlusSquare, X, LogOut, Info, Settings, Users } from 'lucide-react';
 import SMLogo from './SMLogo';
 
 const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => void, currentView?: string }> = ({ onClose, onNavigate, currentView = 'home' }) => {
@@ -51,6 +51,13 @@ const Sidebar: React.FC<{ onClose?: () => void, onNavigate?: (view: string) => v
               icon={<Heart className="w-4 h-4" />} 
               label="Любимое" 
               active={currentView === 'liked'} 
+            />
+          </div>
+          <div onClick={() => navigate('rooms')}>
+            <NavItem 
+              icon={<Users className="w-4 h-4" />} 
+              label="Слушать вместе" 
+              active={currentView === 'rooms'} 
             />
           </div>
           <div onClick={() => navigate('settings')}>

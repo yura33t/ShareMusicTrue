@@ -10,6 +10,7 @@ import Settings from './components/Settings';
 import Player from './components/Player';
 import RightPanel from './components/RightPanel';
 import PremiumModal from './components/PremiumModal';
+import RoomsPanel from './components/RoomsPanel';
 import { PlayerProvider, usePlayer } from './PlayerContext';
 import { getRecommendations, searchTracks, searchPlaylists, SoundCloudTrack, SoundCloudPlaylist } from './services/soundcloud';
 import { motion, AnimatePresence } from 'motion/react';
@@ -204,6 +205,12 @@ const AppContent: React.FC = () => {
                     </div>
                 )}
             </motion.section>
+        );
+    }
+
+    if (view === 'rooms') {
+        return (
+            <RoomsPanel />
         );
     }
 

@@ -31,6 +31,22 @@ interface PlayerContextType {
   setPremiumModalOpen: (open: boolean) => void;
   pendingDownloadTrack: SoundCloudTrack | null;
   setPendingDownloadTrack: (track: SoundCloudTrack | null) => void;
+  
+  // USER SESSIONS & CO-LISTENING ROOM CAPABILITIES
+  user: { id: string; username: string; avatarUrl: string } | null;
+  setUser: (user: { id: string; username: string; avatarUrl: string } | null) => void;
+  logout: () => void;
+  roomCode: string | null;
+  roomOwner: string | null;
+  roomError: string | null;
+  clearRoomError: () => void;
+  roomMembers: Array<{ id: string; username: string; avatarUrl: string }>;
+  roomChat: Array<{ id: string; username: string; message: string; timestamp: number }>;
+  myMemberId: string | null;
+  joinRoom: (roomId: string, username: string, avatarUrl?: string, isCreating?: boolean) => void;
+  leaveRoom: () => void;
+  sendChatMessage: (message: string) => void;
+  requestSync: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -55,6 +71,44 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   const [pendingDownloadTrack, setPendingDownloadTrack] = useState<SoundCloudTrack | null>(null);
   const [downloadingTracks, setDownloadingTracks] = useState<number[]>([]);
+
+  // User session state and co-listening states
+  const [user, setUserState] = useState<{ id: string; username: string; avatarUrl: string } | null>(() => {
+    const saved = localStorage.getItem('app_user');
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const setUser = (newUser: { id: string; username: string; avatarUrl: string } | null) => {
+    setUserState(newUser);
+    if (newUser) {
+      localStorage.setItem('app_user', JSON.stringify(newUser));
+    } else {
+      localStorage.removeItem('app_user');
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('app_user');
+    setUserState(null);
+    leaveRoom();
+  };
+
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [roomOwner, setRoomOwner] = useState<string | null>(null);
+  const [roomError, setRoomError] = useState<string | null>(null);
+  const [roomMembers, setRoomMembers] = useState<Array<{ id: string; username: string; avatarUrl: string }>>([]);
+  const [roomChat, setRoomChat] = useState<Array<{ id: string; username: string; message: string; timestamp: number }>>([]);
+  const [myMemberId, setMyMemberId] = useState<string | null>(null);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const isRemoteUpdateRef = useRef(false);
+  const lastReceivedTrackIdRef = useRef<number | null>(null);
+
+  const clearRoomError = () => setRoomError(null);
   
   const currentTrackRef = useRef(currentTrack);
   const playlistRef = useRef(playlist);
@@ -291,7 +345,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       playlistRef.current = newPlaylist;
     }
 
-    if (currentTrackRef.current?.id === track.id && audioRef.current.src && !forceFresh) {
+    if (currentTrackRef.current?.id === track.id && audioRef.current.src && !forceFresh && !isRemoteUpdateRef.current) {
       togglePlay();
       return;
     }
@@ -437,6 +491,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const togglePlay = async () => {
     if (!audioRef.current || !currentTrack || isLoading) return;
+    let nextPlayingState = !isPlaying;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -444,9 +499,23 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         await audioRef.current.play();
         setIsPlaying(true);
+        nextPlayingState = true;
       } catch (err) {
         console.warn('Play interrupted', err);
         setIsPlaying(false);
+        nextPlayingState = false;
+      }
+    }
+
+    if (roomCode && !isRemoteUpdateRef.current) {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'play_state',
+          payload: {
+            isPlaying: nextPlayingState,
+            progress: audioRef.current.currentTime
+          }
+        }));
       }
     }
   };
@@ -455,6 +524,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (audioRef.current) {
       audioRef.current.currentTime = p;
       setProgress(p);
+
+      if (roomCode && !isRemoteUpdateRef.current) {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'play_state',
+            payload: {
+              isPlaying: isPlaying,
+              progress: p
+            }
+          }));
+        }
+      }
     }
   };
 
@@ -598,6 +679,192 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const joinRoom = (roomId: string, username: string, avatarUrl?: string, isCreating: boolean = false) => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+
+    setRoomError(null);
+    const cleanRoomId = roomId.trim().toLowerCase();
+    setRoomCode(cleanRoomId);
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/ws`;
+    
+    console.log(`[Co-listening] Connecting to WebSocket: ${wsUrl}`);
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log(`[Co-listening] WebSocket open, sending join_room for ${cleanRoomId} (isCreating: ${isCreating})`);
+      ws.send(JSON.stringify({
+        type: 'join_room',
+        payload: {
+          roomId: cleanRoomId,
+          username,
+          avatarUrl,
+          isCreating
+        }
+      }));
+    };
+
+    ws.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const { type, payload } = data;
+
+        if (type === 'room_error') {
+          setRoomError(payload.message || 'Ошибка подключения к комнате');
+          setRoomCode(null);
+          return;
+        }
+
+        else if (type === 'room_sync') {
+          const { roomId: rId, ownerUsername: remoteOwner, currentTrack: remoteTrack, isPlaying: remoteIsPlaying, progress: remoteProgress, members, playlist: remotePlaylist, chat: remoteChatList, myMemberId: memberId } = payload;
+          
+          setRoomCode(rId);
+          setRoomOwner(remoteOwner || null);
+          setRoomMembers(members);
+          setRoomChat(remoteChatList);
+          setMyMemberId(memberId);
+
+          if (remoteTrack) {
+            lastReceivedTrackIdRef.current = remoteTrack.id; // Prevent local track change effect loop
+            isRemoteUpdateRef.current = true;
+            if (remotePlaylist && remotePlaylist.length > 0) {
+              setPlaylist(remotePlaylist);
+              playlistRef.current = remotePlaylist;
+            }
+            await playTrack(remoteTrack, remotePlaylist || [], false);
+            if (audioRef.current) {
+              audioRef.current.currentTime = remoteProgress || 0;
+              setProgress(remoteProgress || 0);
+              if (!remoteIsPlaying) {
+                audioRef.current.pause();
+                setIsPlaying(false);
+              } else {
+                audioRef.current.play().catch(() => {});
+                setIsPlaying(true);
+              }
+            }
+            isRemoteUpdateRef.current = false;
+          }
+        }
+
+        else if (type === 'members_updated') {
+          setRoomMembers(payload.members);
+        }
+
+        else if (type === 'chat_message_received') {
+          setRoomChat(prev => {
+            if (prev.some(m => m.id === payload.id)) return prev;
+            return [...prev, payload];
+          });
+        }
+
+        else if (type === 'track_changed') {
+          const { track, playlist: remotePlaylist } = payload;
+          lastReceivedTrackIdRef.current = track.id; // Prevent local track change effect loop
+          isRemoteUpdateRef.current = true;
+          if (remotePlaylist && remotePlaylist.length > 0) {
+            setPlaylist(remotePlaylist);
+            playlistRef.current = remotePlaylist;
+          }
+          await playTrack(track, remotePlaylist || [], false);
+          isRemoteUpdateRef.current = false;
+        }
+
+        else if (type === 'play_state_changed') {
+          const { isPlaying: remoteIsPlaying, progress: remoteProgress } = payload;
+          isRemoteUpdateRef.current = true;
+          if (audioRef.current) {
+            if (remoteProgress !== undefined) {
+              audioRef.current.currentTime = remoteProgress;
+              setProgress(remoteProgress);
+            }
+            if (remoteIsPlaying) {
+              audioRef.current.play().catch(() => {});
+              setIsPlaying(true);
+            } else {
+              audioRef.current.pause();
+              setIsPlaying(false);
+            }
+          }
+          isRemoteUpdateRef.current = false;
+        }
+
+      } catch (err) {
+        console.error("[Co-listening] Error processing WebSocket message:", err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[Co-listening] WebSocket connection closed');
+      setRoomCode(null);
+      setRoomMembers([]);
+      setRoomChat([]);
+      setMyMemberId(null);
+      setRoomOwner(null);
+      wsRef.current = null;
+    };
+
+    ws.onerror = (err) => {
+      console.error('[Co-listening] WebSocket error:', err);
+    };
+  };
+
+  const leaveRoom = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setRoomCode(null);
+    setRoomMembers([]);
+    setRoomChat([]);
+    setMyMemberId(null);
+    setRoomOwner(null);
+    setRoomError(null);
+  };
+
+  const sendChatMessage = (message: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'chat_message',
+        payload: { message }
+      }));
+    }
+  };
+
+  const requestSync = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'request_sync',
+        payload: {}
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (roomCode && currentTrack) {
+      // If this track change is identical to the one we just received from the server, skip sending it back
+      if (lastReceivedTrackIdRef.current === currentTrack.id) {
+        lastReceivedTrackIdRef.current = null;
+        return;
+      }
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'track_change',
+          payload: {
+            track: currentTrack,
+            playlist: playlist
+          }
+        }));
+      }
+    }
+  }, [currentTrack, roomCode]);
+
   return (
     <PlayerContext.Provider
       value={{
@@ -626,6 +893,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setPremiumModalOpen,
         pendingDownloadTrack,
         setPendingDownloadTrack,
+        user,
+        setUser,
+        logout,
+        roomCode,
+        roomOwner,
+        roomError,
+        clearRoomError,
+        roomMembers,
+        roomChat,
+        myMemberId,
+        joinRoom,
+        leaveRoom,
+        sendChatMessage,
+        requestSync,
       }}
     >
       {children}
