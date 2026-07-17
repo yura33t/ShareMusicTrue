@@ -9,9 +9,42 @@ import crypto from "crypto";
 
 dotenv.config();
 
-const supabaseUrl = process.env.SUPABASE_URL || "https://dhukbnkjwairghjdewjh.supabase.co";
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Lazily initialized Supabase client to prevent crashing the server during boot/deploy
+// when keys are not yet configured in the hosting environment (e.g. Render).
+let supabaseClient: ReturnType<typeof createClient> | null = null;
+
+function getSupabase(): ReturnType<typeof createClient> {
+  if (!supabaseClient) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error(
+        "\n========================================================================\n" +
+        "❌ WARNING: Supabase is not fully configured!\n" +
+        "Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.\n" +
+        "You can configure these in your Render Dashboard under Environment Settings.\n" +
+        "========================================================================\n"
+      );
+      throw new Error("Supabase is not configured. SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required.");
+    }
+
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+  }
+  return supabaseClient;
+}
+
+// Use a Proxy so the rest of the application can continue referencing the `supabase` global identifier safely
+const supabase: any = new Proxy({} as any, {
+  get(target, prop) {
+    const client = getSupabase();
+    const value = (client as any)[prop];
+    if (typeof value === "function") {
+      return value.bind(client);
+    }
+    return value;
+  }
+});
 
 
 const FALLBACK_CLIENT_IDS = [
